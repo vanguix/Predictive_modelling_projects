@@ -7,13 +7,12 @@ output: html_notebook
 
 During this project, we will analyse two data sets in order to obtain more insights about them and predict some objective variable. First, we will approach the problem with a Linear Regression model, then, with the second data set, we will try to model a Generalised Linear Model. These are the data sets used:
 
+-   Airbnb: <https://www.kaggle.com/datasets/dipeshkhemani/airbnb-cleaned-europe-dataset>
 
--   Airbnb: https://www.kaggle.com/datasets/dipeshkhemani/airbnb-cleaned-europe-dataset 
-
--   Data scientist jobs: https://www.kaggle.com/datasets/nikhilbhathi/data-scientist-salary-us-glassdoor
-
+-   Data scientist jobs: <https://www.kaggle.com/datasets/nikhilbhathi/data-scientist-salary-us-glassdoor>
 
 # Linear Regression
+
 ## Data preparation
 
 For the first part of the assignment we will be using the Airbnb data set. It consist of information about the Airbnb stays in some European cities. The variables are the following:
@@ -33,9 +32,10 @@ For the first part of the assignment we will be using the Airbnb data set. It co
 -   Bedrooms: integer from 0 to 10
 -   City center(km): continuous
 -   Metro distance(km): continuous
--   Attraction index: continuous
--   Normalised Atraction index: continuous
--   Restraunt Index: continuous
+-   Attraction index: continuous variable measuring the atraction to the Airbnb by the costumers
+-   Normalised Atraction index: same
+-   Restraunt Index: continuous variable measuring the restaurant performance index 
+-   Normalised Restraunt Index: same
 
 The goal would be to predict the Price variable in terms of the others. First, it is always a good idea to separate from the beginning the training set (what the tool is going to see) from the testing set (used only to validate predictions)
 
@@ -62,31 +62,33 @@ str(AirbnbTrain)
 ```
 
 Once separated, let's clean and understand the training set. First, we check any missing values. There is any missing value.
+
 ```{r}
 any(is.na(AirbnbTrain))
 ```
-Now we evaluate the numerical variables, having some statistics such as minnimum, maximum, quantiles mean and median.
 
+Now we evaluate the numerical variables, having some statistics such as minnimum, maximum, quantiles mean and median.
 
 ```{r}
 summary(AirbnbTrain)
 
 ```
+
 From the data obtained we can obtain the following insigths:
 
 ##### Price
- The maximum of price seems to be too large for the mean and median. We can get a better look with a boxplot: 
- 
+
+The maximum of price seems to be too large for the mean and median. We can get a better look with a boxplot:
+
 ```{r}
 boxplot(AirbnbTrain$Price)
 ```
- 
+
 Although the maximum is an outlier is not alone, we can observe many outlier that could be representing expensive Airbnb. In the case the maximum would be alone, we could get rid of it, but in this case this can be meaningful data.
 
-##### Attraction.Index  and Restraunt.Index  
+##### Attraction.Index and Restraunt.Index
 
 As we have the normalize columns, we have redundant information, so we will only keep those.
-
 
 ```{r}
 AirbnbTrain <- subset(AirbnbTrain, select = -c(Attraction.Index, Restraunt.Index ))
@@ -106,6 +108,7 @@ table(AirbnbTrain$Multiple.Rooms)
 table(AirbnbTrain$Business)
 
 ```
+
 The variable Room type has the same information than Private Room and Shared room, so we will erase the last two.
 
 ```{r}
@@ -119,7 +122,6 @@ Finally, the variable Superhost is as False/True, we will code as binary the Fal
 AirbnbTrain$Superhost<-as.numeric(as.logical(AirbnbTrain$Superhost))
 
 ```
-
 
 ## Explanatory analysis
 
@@ -138,8 +140,8 @@ exp(mean(log(AirbnbTrain$Price)))
 
 
 ```
- 
-The log(Price) seems to follow a Gaussian distribution with mean 5.36 (214.2107 €).
+
+The log(Price) seems to follow a Gaussian distribution with mean 5.36 (214.2107 €). This is beneficial in terms of future prediction of the target, as it is symetrical there are no much extreme values and the regresion would make better predictions.
 
 
 We now have in mind the Prices in terms of the city, in order to better understand the data.
@@ -147,10 +149,10 @@ We now have in mind the Prices in terms of the city, in order to better understa
 ```{r}
 ggplot(AirbnbTrain, aes(log(Price))) + geom_density(aes(group=City, colour=City, fill=City), alpha=0.1) + ggtitle("Price distribution")
 ```
+
 Most of the cities have the same distribution, however we can observe how Berlin has the highest prices while Amsterdam the lowest.
 
-
-
+Some of the variables that we may think are important to determine the price of an Airbnb are: distance to metro, distance to city center, number of bedrooms, restaurant and atraction indexes. Let's observe them.
 ```{r}
 ggplot(AirbnbTrain, aes(x=City.Center..km., y=log(Price), color=City)) + geom_point(alpha=0.8) + ggtitle("Price vs City Center distance") 
 
@@ -159,12 +161,32 @@ ggplot(AirbnbTrain, aes(x=City.Center..km., y=log(Price), color=City)) + geom_po
 ```{r}
 ggplot(AirbnbTrain, aes(x=Metro.Distance..km., y=log(Price), color=City)) + geom_point(alpha=0.8) + ggtitle("Price vs Metro distance")
 ```
+As observed, the most expensive Airbnb are the ones really close to the metro and center (there are no points at the rigth upper corner).
 
+
+```{r}
+ggplot(AirbnbTrain, aes(x = Bedrooms, y = log(Price), fill = City)) +
+  geom_bar(stat = "identity", position = "dodge", alpha = 0.8) +
+  ggtitle("Price vs Number of bedrooms")
+```
+```{r}
+table(AirbnbTrain$Bedrooms)
+```
+We could say that surprisingly, Airbnb with higher number of bedrooms are cheaper than the ones with lower number. However, we don't have enought information about the number of bedrooms higher than 4, so it is difficult to make any assumptions. From 0 to 3, the ones with 2 bedrooms seems the most expensive in general.
+
+```{r}
+ggplot(AirbnbTrain, aes(x=Normalised.Attraction.Index, y=log(Price), color=City)) + geom_point(alpha=0.8) + ggtitle("Price vs Attraction Index") 
+```
+
+```{r}
+ggplot(AirbnbTrain, aes(x=Normalised.Restraunt.Index, y=log(Price), color=City)) + geom_point(alpha=0.8) + ggtitle("Price vs Restraunt Index") 
+```
+
+
+Finally, the indexes ....?
 ### Correlations
 
 The most important term when evaluating a data set for predictions are the correlations. Which are the variables that are more correlated with our objective variable? First, we would focus on isolated correlations:
-
-
 
 ```{r}
 ## Moving the objective function to the last position
@@ -185,7 +207,6 @@ ggplot(corr,aes(x = row.names(corr), y = corr_delay)) +
 
 ## Predictive analysis
 
-
 # Generalised Linear Models
 
 ## Data preparation
@@ -193,5 +214,3 @@ ggplot(corr,aes(x = row.names(corr), y = corr_delay)) +
 ## Model development and interpretation
 
 ## Predictive performance
-
-
