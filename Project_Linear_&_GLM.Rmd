@@ -1,0 +1,197 @@
+---
+title: "Project 1 Predictive Modeling"
+output: html_notebook
+---
+
+# Introduction
+
+During this project, we will analyse two data sets in order to obtain more insights about them and predict some objective variable. First, we will approach the problem with a Linear Regression model, then, with the second data set, we will try to model a Generalised Linear Model. These are the data sets used:
+
+
+-   Airbnb: https://www.kaggle.com/datasets/dipeshkhemani/airbnb-cleaned-europe-dataset 
+
+-   Data scientist jobs: https://www.kaggle.com/datasets/nikhilbhathi/data-scientist-salary-us-glassdoor
+
+
+# Linear Regression
+## Data preparation
+
+For the first part of the assignment we will be using the Airbnb data set. It consist of information about the Airbnb stays in some European cities. The variables are the following:
+
+-   City: Amsterdam, Athens, Barcelona, Berlin, Budapest, Lisbon, Paris, Rome or Vienna
+-   Price: per day?
+-   Day: WeekDay or Weekend
+-   Room Type: Private room, ???
+-   Shared Room: true or false
+-   Private Room: true or false
+-   Person capacity: integer from 2 to 6.
+-   Superhost: True or false
+-   Multiple Rooms: 0 or 1
+-   Business: 0 or 1
+-   Cleanliness Rating: integer from 2 to 10.
+-   Guest satisfaction: continuous
+-   Bedrooms: integer from 0 to 10
+-   City center(km): continuous
+-   Metro distance(km): continuous
+-   Attraction index: continuous
+-   Normalised Atraction index: continuous
+-   Restraunt Index: continuous
+
+The goal would be to predict the Price variable in terms of the others. First, it is always a good idea to separate from the beginning the training set (what the tool is going to see) from the testing set (used only to validate predictions)
+
+```{r}
+library(tidyverse)
+library(MASS)
+library(caret) #ML tools
+library(e1071) 
+par(mar = c(2, 2, 2, 2))
+# Loading and preparing data
+Airbnb <- read.csv("Airbnb_data.csv")
+Airbnb
+```
+
+```{r}
+# split between training and testing sets
+spl = createDataPartition(Airbnb$Price, p = 0.8, list = FALSE)  # 80% for training
+
+AirbnbTrain = Airbnb[spl,]
+AirbnbTest = Airbnb[-spl,]
+
+str(AirbnbTrain)
+
+```
+
+Once separated, let's clean and understand the training set. First, we check any missing values. There is any missing value.
+```{r}
+any(is.na(AirbnbTrain))
+```
+Now we evaluate the numerical variables, having some statistics such as minnimum, maximum, quantiles mean and median.
+
+
+```{r}
+summary(AirbnbTrain)
+
+```
+From the data obtained we can obtain the following insigths:
+
+##### Price
+ The maximum of price seems to be too large for the mean and median. We can get a better look with a boxplot: 
+ 
+```{r}
+boxplot(AirbnbTrain$Price)
+```
+ 
+Although the maximum is an outlier is not alone, we can observe many outlier that could be representing expensive Airbnb. In the case the maximum would be alone, we could get rid of it, but in this case this can be meaningful data.
+
+##### Attraction.Index  and Restraunt.Index  
+
+As we have the normalize columns, we have redundant information, so we will only keep those.
+
+
+```{r}
+AirbnbTrain <- subset(AirbnbTrain, select = -c(Attraction.Index, Restraunt.Index ))
+
+```
+
+The rest of numerical variables seem fine with their ranges, so no changes are needed. Let's now evaluate the categorical variables:
+
+```{r}
+table(AirbnbTrain$City)
+table(AirbnbTrain$Day)
+table(AirbnbTrain$Room.Type)
+table(AirbnbTrain$Shared.Room)
+table(AirbnbTrain$Private.Room)
+table(AirbnbTrain$Superhost)
+table(AirbnbTrain$Multiple.Rooms)
+table(AirbnbTrain$Business)
+
+```
+The variable Room type has the same information than Private Room and Shared room, so we will erase the last two.
+
+```{r}
+AirbnbTrain <- subset(AirbnbTrain, select = -c(Private.Room, Shared.Room ))
+
+```
+
+Finally, the variable Superhost is as False/True, we will code as binary the False/True options.
+
+```{r}
+AirbnbTrain$Superhost<-as.numeric(as.logical(AirbnbTrain$Superhost))
+
+```
+
+
+## Explanatory analysis
+
+In order to better comprehend our data, we need to plot it. Concretely, we will have in mind plots respect to the objective variable, the price, for trying to visualize a model for predicting it.
+
+```{r}
+ggplot(AirbnbTrain, aes(Price)) + geom_density(fill="lightblue") + xlab("log(Price)") + ggtitle("Price distribution")
+
+## from the statistics obtained before we know price has no 0 values as minimum is 34, so we can apply the logarithm to better visualize it
+
+
+ggplot(AirbnbTrain, aes(log(Price))) + geom_density(fill="lightblue") + xlab("log(Price)") + ggtitle("Price distribution")
+
+mean(log(AirbnbTrain$Price))
+exp(mean(log(AirbnbTrain$Price)))
+
+
+```
+ 
+The log(Price) seems to follow a Gaussian distribution with mean 5.36 (214.2107 €).
+
+
+We now have in mind the Prices in terms of the city, in order to better understand the data.
+
+```{r}
+ggplot(AirbnbTrain, aes(log(Price))) + geom_density(aes(group=City, colour=City, fill=City), alpha=0.1) + ggtitle("Price distribution")
+```
+Most of the cities have the same distribution, however we can observe how Berlin has the highest prices while Amsterdam the lowest.
+
+
+
+```{r}
+ggplot(AirbnbTrain, aes(x=City.Center..km., y=log(Price), color=City)) + geom_point(alpha=0.8) + ggtitle("Price vs City Center distance") 
+
+```
+
+```{r}
+ggplot(AirbnbTrain, aes(x=Metro.Distance..km., y=log(Price), color=City)) + geom_point(alpha=0.8) + ggtitle("Price vs Metro distance")
+```
+
+### Correlations
+
+The most important term when evaluating a data set for predictions are the correlations. Which are the variables that are more correlated with our objective variable? First, we would focus on isolated correlations:
+
+
+
+```{r}
+## Moving the objective function to the last position
+AirbnbTrain<-AirbnbTrain[, c(1:(2 - 1), (2 + 1):ncol(AirbnbTrain), 2)]
+
+```
+
+```{r}
+corr_delay <- sort(cor(AirbnbTrain[,c(4:15)])["Price",], decreasing = T)
+corr=data.frame(corr_delay)
+ggplot(corr,aes(x = row.names(corr), y = corr_delay)) + 
+  geom_bar(stat = "identity", fill = "lightblue") + 
+  scale_x_discrete(limits= row.names(corr)) +
+  labs(x = "", y = "Price", title = "Correlations") + 
+  theme(plot.title = element_text(hjust = 0, size = rel(1.5)),
+        axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+## Predictive analysis
+
+
+# Generalised Linear Models
+
+## Data preparation
+
+## Model development and interpretation
+
+## Predictive performance
+
+
