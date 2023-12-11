@@ -34,7 +34,7 @@ For the first part of the assignment we will be using the Airbnb data set. It co
 -   Metro distance(km): continuous
 -   Attraction index: continuous variable measuring the atraction to the Airbnb by the costumers
 -   Normalised Atraction index: same
--   Restraunt Index: continuous variable measuring the restaurant performance index 
+-   Restraunt Index: continuous variable measuring the restaurant performance index
 -   Normalised Restraunt Index: same
 
 The goal would be to predict the Price variable in terms of the others. First, it is always a good idea to separate from the beginning the training set (what the tool is going to see) from the testing set (used only to validate predictions)
@@ -143,7 +143,6 @@ exp(mean(log(AirbnbTrain$Price)))
 
 The log(Price) seems to follow a Gaussian distribution with mean 5.36 (214.2107 €). This is beneficial in terms of future prediction of the target, as it is symetrical there are no much extreme values and the regresion would make better predictions.
 
-
 We now have in mind the Prices in terms of the city, in order to better understand the data.
 
 ```{r}
@@ -153,6 +152,7 @@ ggplot(AirbnbTrain, aes(log(Price))) + geom_density(aes(group=City, colour=City,
 Most of the cities have the same distribution, however we can observe how Berlin has the highest prices while Amsterdam the lowest.
 
 Some of the variables that we may think are important to determine the price of an Airbnb are: distance to metro, distance to city center, number of bedrooms, restaurant and atraction indexes. Let's observe them.
+
 ```{r}
 ggplot(AirbnbTrain, aes(x=City.Center..km., y=log(Price), color=City)) + geom_point(alpha=0.8) + ggtitle("Price vs City Center distance") 
 
@@ -161,17 +161,19 @@ ggplot(AirbnbTrain, aes(x=City.Center..km., y=log(Price), color=City)) + geom_po
 ```{r}
 ggplot(AirbnbTrain, aes(x=Metro.Distance..km., y=log(Price), color=City)) + geom_point(alpha=0.8) + ggtitle("Price vs Metro distance")
 ```
-As observed, the most expensive Airbnb are the ones really close to the metro and center (there are no points at the rigth upper corner).
 
+As observed, the most expensive Airbnb are the ones really close to the metro and center (there are no points at the rigth upper corner).
 
 ```{r}
 ggplot(AirbnbTrain, aes(x = Bedrooms, y = log(Price), fill = City)) +
   geom_bar(stat = "identity", position = "dodge", alpha = 0.8) +
   ggtitle("Price vs Number of bedrooms")
 ```
+
 ```{r}
 table(AirbnbTrain$Bedrooms)
 ```
+
 We could say that surprisingly, Airbnb with higher number of bedrooms are cheaper than the ones with lower number. However, we don't have enought information about the number of bedrooms higher than 4, so it is difficult to make any assumptions. From 0 to 3, the ones with 2 bedrooms seems the most expensive in general.
 
 ```{r}
@@ -182,8 +184,9 @@ ggplot(AirbnbTrain, aes(x=Normalised.Attraction.Index, y=log(Price), color=City)
 ggplot(AirbnbTrain, aes(x=Normalised.Restraunt.Index, y=log(Price), color=City)) + geom_point(alpha=0.8) + ggtitle("Price vs Restraunt Index") 
 ```
 
+Finally, the indexes did not provide as much information. But, focusing on the Restaurant index we could visualize a kind of linear tendency with lower prices on the ones with lower index and higher prices close to higher index rating. However, is still difficult to make assumptions without an appropiate model. In the following sections this relationship would be better explained.
 
-Finally, the indexes ....?
+
 ### Correlations
 
 The most important term when evaluating a data set for predictions are the correlations. Which are the variables that are more correlated with our objective variable? First, we would focus on isolated correlations:
@@ -205,7 +208,140 @@ ggplot(corr,aes(x = row.names(corr), y = corr_delay)) +
         axis.text.x = element_text(angle = 45, hjust = 1))
 ```
 
+A priori, the only variables helpful for performing a linear regression predictor are Normalised Atraction Index, Normalised Restraunt Index, number of Bedrooms and Person Capacity. However, is important to recall that we are plotting the individual correlations, maybe if we add information between variables we could get higher correlations, and therefore have better predictions. 
+
+### Simple linear regression: interpreting the betas
+
+Before developing a complex model for prediction, we will try to create a simpler one where we avoid colinearities and better understand the betas. Therefore, we first create a simple linear regressor with the higher correlation variable: Normalised Atraction Index. 
+
+```{r}
+simple_linFit <- lm(log(Price) ~ Normalised.Attraction.Index, data=AirbnbTrain)
+summary(simple_linFit)
+```
+The simple linear regression model is defined as: 
+$log(Price) = \beta_0 + \beta_1 N.Attraction.Index= 5.01 + 0.03 N.Attraction.Index$
+
+where $\beta_1$ explains that a 1 unit increase in the normalized attraction index would increase in 0.03 % the log of the Price. We can trust this model because the information gain is larger than the noise, as the p_value close to 0 confirms. 
+
+Furthermore, focusing on the global information, the residual standard error, although is larger than the local, is still not that high. The residual standard error is higher than the local because there is not much information gain from the model, however, we can trust the model as the information that $\beta_1$ gives us has small standard error.
+
+Finally, the R squared tell us about the information gain we get from the model. Almost 20%, while the remaining 80% is noise. Although this could seem a bad result, we would need to compare with a benchmark for better conclusions (on the following sections). 
+
+To better comprehend how this model approaches the price prediction we will plot the regression line:
+
+```{r}
+# Scatter plot
+
+ggplot(AirbnbTrain, aes(x = Normalised.Attraction.Index, y = log(Price))) +
+  geom_point(alpha = 0.8, color= 'lightblue') +
+  geom_smooth(method = "lm", se = FALSE, color = "blue") +
+  ggtitle("Price vs Attraction Index regression")
+```
+
+After understanding the model, let's evaluate how it predicts (this result will be later compared with the benchmark and the complex linear regression model).
+
+```{r}
+pred_simple= exp(predict(simple_linFit, newdata= AirbnbTest))
+
+#Let's know validate the predictions, calculating R^2 in the testing set
+
+R2_simple= cor(pred_simple, AirbnbTest$Price)^2
+R2_simple
+```
+As expected, $R^2$ on the testing set is smaller than on the training set (remember it was 0.2). Always is more difficult to predict future values than present ones.
+
+Diagnosis??
+```{r}
+par(mar = c(2, 2, 2, 2))
+
+plot(simple_linFit, pch=23 ,bg='orange',cex=2)
+```
+
 ## Predictive analysis
+
+After understanding better how our data is constructed and being defined a simple regression model, we will know try to develop the best model for prediction. But first, we need to define the benchmark, from where we have to improve.
+
+### Benchmark
+
+In our case, as we are dealing with numerical continuous target, we would consider the benchmark as predicting the mean (again using the logarithmic transformation). This would be similar to the following model:
+$log(price)= \beta_0 \times 1$
+
+```{r}
+benchFit <- lm(log(Price) ~ 1, data=AirbnbTrain)
+pred_bench <- predict(benchFit, newdata=AirbnbTest)
+```
+
+As on the mean predictor the $R^2$ can not be computed, we will use the Mean Squared Error for comparison:
+ 
+```{r}
+#MSE comparison: my model vs benchmark
+MSE_simple=sqrt(mean((pred_simple - log(AirbnbTest$Price))^2))
+MSE_bench= sqrt(mean((pred_bench - log(AirbnbTest$Price))^2))
+MSE_simple
+MSE_bench
+```
+Clearly, our simple model is much worse than the naive model, so we need to improve it.
+ 
+
+### Final model (with interactions)
+
+interpret!!
+
+We will try the stepwise method. By default, when you use step() for model selection in linear regression, it tries to minimize the AIC. The AIC is a measure that balances the goodness of fit of the model with the complexity of the model (number of parameters). Lower AIC values indicate better models.
+
+```{r}
+## We need to code Superhost in test as in Training for the predictions to work
+AirbnbTest$Superhost<-as.numeric(as.logical(AirbnbTest$Superhost))
+
+```
+
+
+```{r}
+# Store the response variable
+Y <- AirbnbTrain$Price
+
+# Variables to add
+variables_to_add <- names(AirbnbTrain[-1])
+
+# Create an empty list to store models and MSE
+models <- list()
+mse_list <- numeric(length(variables_to_add) + 1)
+
+# Fit models and calculate MSE
+for (i in seq_along(variables_to_add)) {
+  formula <- as.formula(paste("log(Y) ~ ", paste(variables_to_add[1:i], collapse = " + ")))
+  model <- lm(formula, data = AirbnbTrain)
+  
+  # Store the model
+  models[[i]] <- model
+  
+  # Predict on the test set
+  pred <- predict(model, newdata = AirbnbTest)
+  
+  # Calculate MSE
+  mse <- sqrt(mean((pred - log(AirbnbTest$Price))^2))
+  
+  # Store MSE in the list
+  mse_list[i] <- mse
+}
+
+# Add MSE for the benchmark model
+mse_list[length(mse_list)] <- MSE_bench
+
+# Find the model with the lowest MSE
+best_model_index <- which.min(mse_list)
+best_model <- models[[best_model_index]]
+
+# Print results
+cat("Best model includes variables:", variables_to_add[1:best_model_index], "\n")
+cat("MSE of the best model:", mse_list[best_model_index], "\n")
+
+```
+
+
+### Prediction Intervals
+
+
 
 # Generalised Linear Models
 
