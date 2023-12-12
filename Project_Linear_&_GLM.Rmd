@@ -268,7 +268,7 @@ $log(price)= \beta_0 \times 1$
 
 ```{r}
 benchFit <- lm(log(Price) ~ 1, data=AirbnbTrain)
-pred_bench <- predict(benchFit, newdata=AirbnbTest)
+pred_bench <- exp(predict(benchFit, newdata=AirbnbTest))
 ```
 
 As on the mean predictor the $R^2$ can not be computed, we will use the Mean Squared Error for comparison:
@@ -280,7 +280,7 @@ MSE_bench= sqrt(mean((pred_bench - log(AirbnbTest$Price))^2))
 MSE_simple
 MSE_bench
 ```
-Clearly, our simple model is much worse than the naive model, so we need to improve it.
+Clearly, our simple model is worse than the naive model, so we need to improve it.
  
 
 ### Final model (with interactions)
@@ -316,7 +316,7 @@ for (i in seq_along(variables_to_add)) {
   models[[i]] <- model
   
   # Predict on the test set
-  pred <- predict(model, newdata = AirbnbTest)
+  pred <- exp(predict(model, newdata = AirbnbTest))
   
   # Calculate MSE
   mse <- sqrt(mean((pred - log(AirbnbTest$Price))^2))
@@ -337,6 +337,51 @@ cat("Best model includes variables:", variables_to_add[1:best_model_index], "\n"
 cat("MSE of the best model:", mse_list[best_model_index], "\n")
 
 ```
+
+```{r}
+# Store the response variable
+Y <- log(AirbnbTrain$Price)
+
+# Variables to add
+variables_to_add <- names(AirbnbTrain)[-1]
+
+# Create an empty data frame to store models and MSE
+mse_df <- data.frame(MSE = numeric(length(variables_to_add)), Variables = character(length(variables_to_add)), stringsAsFactors = FALSE)
+
+models <- list()
+
+
+
+# Fit models and calculate MSE
+for (i in seq_along(variables_to_add)) {
+  formula <- as.formula(paste("Y ~ ", paste(variables_to_add[1:i], collapse = " + ")))
+  model <- lm(formula, data = AirbnbTrain)
+  
+  # Store the model
+  models[[i]] <- model
+  
+  # Predict on the test set
+  pred <- exp(predict(model, newdata = AirbnbTest))
+  
+  # Calculate MSE
+  mse <- sqrt(mean((pred - log(AirbnbTest$Price))^2))
+  
+  # Store MSE and variables in the data frame
+  mse_df[i, "MSE"] <- mse
+  mse_df[i, "Variables"] <- paste(variables_to_add[1:i], collapse = ", ")
+}
+
+# Add MSE for the benchmark model
+mse_df[length(mse_df), c("MSE", "Variables")] <- c(MSE_bench, "Benchmark Model")
+# Find the model with the lowest MSE
+best_model_index <- which.min(mse_df$MSE)
+best_model <- models[[best_model_index]]
+
+# Print results
+cat("Best model includes variables:", mse_df$Variables[best_model_index], "\n")
+cat("MSE of the best model:", mse_df$MSE[best_model_index], "\n")
+```
+
 
 
 ### Prediction Intervals
