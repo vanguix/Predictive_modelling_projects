@@ -290,53 +290,10 @@ interpret!!
 We will try the stepwise method. By default, when you use step() for model selection in linear regression, it tries to minimize the AIC. The AIC is a measure that balances the goodness of fit of the model with the complexity of the model (number of parameters). Lower AIC values indicate better models.
 
 ```{r}
-## We need to code Superhost in test as in Training for the predictions to work
 AirbnbTest$Superhost<-as.numeric(as.logical(AirbnbTest$Superhost))
 
 ```
 
-
-```{r}
-# Store the response variable
-Y <- AirbnbTrain$Price
-
-# Variables to add
-variables_to_add <- names(AirbnbTrain[-1])
-
-# Create an empty list to store models and MSE
-models <- list()
-mse_list <- numeric(length(variables_to_add) + 1)
-
-# Fit models and calculate MSE
-for (i in seq_along(variables_to_add)) {
-  formula <- as.formula(paste("log(Y) ~ ", paste(variables_to_add[1:i], collapse = " + ")))
-  model <- lm(formula, data = AirbnbTrain)
-  
-  # Store the model
-  models[[i]] <- model
-  
-  # Predict on the test set
-  pred <- exp(predict(model, newdata = AirbnbTest))
-  
-  # Calculate MSE
-  mse <- sqrt(mean((pred - log(AirbnbTest$Price))^2))
-  
-  # Store MSE in the list
-  mse_list[i] <- mse
-}
-
-# Add MSE for the benchmark model
-mse_list[length(mse_list)] <- MSE_bench
-
-# Find the model with the lowest MSE
-best_model_index <- which.min(mse_list)
-best_model <- models[[best_model_index]]
-
-# Print results
-cat("Best model includes variables:", variables_to_add[1:best_model_index], "\n")
-cat("MSE of the best model:", mse_list[best_model_index], "\n")
-
-```
 
 ```{r}
 # Store the response variable
@@ -381,7 +338,166 @@ best_model <- models[[best_model_index]]
 cat("Best model includes variables:", mse_df$Variables[best_model_index], "\n")
 cat("MSE of the best model:", mse_df$MSE[best_model_index], "\n")
 ```
+```{r}
+Y <- log(AirbnbTrain$Price)
 
+variables_to_add= list("Normalised.Attraction.Index", "Normalised.Restraunt.Index", "Bedrooms", "Person.Capacity")
+
+# Create an empty data frame to store models and MSE
+mse_df <- data.frame(MSE = numeric(length(variables_to_add)), Variables = character(length(variables_to_add)), stringsAsFactors = FALSE)
+
+models <- list()
+
+
+
+# Fit models and calculate MSE
+for (i in seq_along(variables_to_add)) {
+  formula <- as.formula(paste("Y ~ ", paste(variables_to_add[1:i], collapse = " + ")))
+  model <- lm(formula, data = AirbnbTrain)
+  
+  # Store the model
+  models[[i]] <- model
+  
+  # Predict on the test set
+  pred <- exp(predict(model, newdata = AirbnbTest))
+  
+  # Calculate MSE
+  mse <- sqrt(mean((pred - log(AirbnbTest$Price))^2))
+  
+  # Store MSE and variables in the data frame
+  mse_df[i, "MSE"] <- mse
+  mse_df[i, "Variables"] <- paste(variables_to_add[1:i], collapse = ", ")
+}
+
+# Find the model with the lowest MSE
+best_model_index <- which.min(mse_df$MSE)
+best_model <- models[[best_model_index]]
+
+# Print results
+cat("Best model includes variables:", mse_df$Variables[best_model_index], "\n")
+cat("MSE of the best model:", mse_df$MSE[best_model_index], "\n")
+
+```
+
+```{r}
+Y <- log(AirbnbTrain$Price)
+
+variables_to_add= list("Normalised.Attraction.Index", "Normalised.Restraunt.Index", "Multiple.Rooms", "City.Center..km.", "Metro.Distance..km.", "Superhost")
+
+# Create an empty data frame to store models and MSE
+mse_df <- data.frame(MSE = numeric(length(variables_to_add)), Variables = character(length(variables_to_add)), stringsAsFactors = FALSE)
+
+models <- list()
+
+
+
+# Fit models and calculate MSE
+for (i in seq_along(variables_to_add)) {
+  formula <- as.formula(paste("Y ~ ", paste(variables_to_add[1:i], collapse = " + ")))
+  model <- lm(formula, data = AirbnbTrain)
+  
+  # Store the model
+  models[[i]] <- model
+  
+  # Predict on the test set
+  pred <- exp(predict(model, newdata = AirbnbTest))
+  
+  # Calculate MSE
+  mse <- sqrt(mean((pred - log(AirbnbTest$Price))^2))
+  
+  # Store MSE and variables in the data frame
+  mse_df[i, "MSE"] <- mse
+  mse_df[i, "Variables"] <- paste(variables_to_add[1:i], collapse = ", ")
+}
+
+# Find the model with the lowest MSE
+best_model_index <- which.min(mse_df$MSE)
+best_model <- models[[best_model_index]]
+
+# Print results
+cat("Best model includes variables:", mse_df$Variables[best_model_index], "\n")
+cat("MSE of the best model:", mse_df$MSE[best_model_index], "\n")
+
+```
+
+
+```{r}
+best_linFit <- lm(log(Price) ~ Multiple.Rooms*(Normalised.Attraction.Index + Normalised.Restraunt.Index)^2 , data=AirbnbTrain)
+
+# Predict on the test set
+pred <- exp(predict(best_linFit, newdata = AirbnbTest))
+  
+  # Calculate MSE
+MSE_best <- sqrt(mean((pred - log(AirbnbTest$Price))^2))
+MSE_best
+```
+
+```{r}
+complex_linFit <- lm(log(Price) ~ Day , data=AirbnbTrain)
+
+# Predict on the test set
+pred <- exp(predict(complex_linFit, newdata = AirbnbTest))
+  
+  # Calculate MSE
+MSE_complex <- sqrt(mean((pred - log(AirbnbTest$Price))^2))
+MSE_complex
+```
+```{r}
+day_linFit <- lm(log(Price) ~  Day, data=AirbnbTrain)
+
+# Predict on the test set
+pred <- exp(predict(day_linFit, newdata = AirbnbTest))
+  
+  # Calculate MSE
+MSE_day <- sqrt(mean((pred - log(AirbnbTest$Price))^2))
+MSE_day
+```
+
+
+
+intenteando quitar outliers del dataset:
+
+```{r}
+# Supongamos que AirbnbTrain es tu conjunto de datos
+# y Price es la variable que quieres limpiar de outliers
+
+# Calcula los límites superior e inferior del boxplot
+Q1 <- quantile(Airbnb$Price, 0.25)
+Q3 <- quantile(Airbnb$Price, 0.75)
+IQR <- Q3 - Q1
+lower_limit <- Q1 - 1.5 * IQR
+upper_limit <- Q3 + 1.5 * IQR
+
+# Filtra los valores que están dentro de los límites
+Airbnb_cleaned <- subset(Airbnb, Price >= lower_limit & Price <= upper_limit)
+
+# Ahora, AirbnbTrain_cleaned no contiene outliers en la variable Price
+
+# split between training and testing sets
+spl = createDataPartition(Airbnb$Price, p = 0.8, list = FALSE)  # 80% for training
+
+AirbnbTrain_new = Airbnb_cleaned[spl,]
+AirbnbTest_new = Airbnb_cleaned[-spl,]
+
+
+bench_linFit_new <- lm(log(Price) ~ 1 , data=AirbnbTrain_new)
+
+# Predict on the test set
+pred <- exp(predict(bench_linFit_new, newdata = AirbnbTest_new))
+  
+  # Calculate MSE
+bench_MSE_new <- sqrt(mean((pred - log(AirbnbTest_new$Price))^2))
+bench_MSE_new
+
+complex_linFit_new <- lm(log(Price) ~ Day*(Normalised.Attraction.Index + Normalised.Restraunt.Index)^2 , data=AirbnbTrain_new)
+
+# Predict on the test set
+pred <- exp(predict(complex_linFit_new, newdata = AirbnbTest_new))
+  
+  # Calculate MSE
+complex_MSE_new <- sqrt(mean((pred - log(AirbnbTest_new$Price))^2))
+complex_MSE_new
+```
 
 
 ### Prediction Intervals
