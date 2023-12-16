@@ -208,6 +208,35 @@ ggplot(corr,aes(x = row.names(corr), y = corr_delay)) +
         axis.text.x = element_text(angle = 45, hjust = 1))
 ```
 
+```{r}
+# Assuming you have loaded the required libraries
+library(ggcorrplot)
+
+# Compute the correlation matrix
+cor_matrix <- cor(AirbnbTrain[, c(4:15)])
+
+# Create a correlation matrix plot using ggcorrplot
+ggcorrplot(cor_matrix,
+           colors = c("lightblue", "white", "lightcoral"),  # Define color scale
+           lab = FALSE,  # Show correlation values
+           lab_size = 1,  # Set label size
+           title = "Correlation Matrix")
+
+# If you still want to plot the correlations with the response variable "Price"
+corr_delay <- sort(cor_matrix["Price", ], decreasing = TRUE)
+corr_data <- data.frame(variable = names(corr_delay), correlation = corr_delay)
+
+# Plot the correlations
+ggplot(corr_data, aes(x = variable, y = correlation)) +
+  geom_bar(stat = "identity", fill = "lightblue") +
+  labs(x = "", y = "Correlation with Price", title = "Variable Correlations") +
+  theme(plot.title = element_text(hjust = 0.5, size = rel(1.5)),
+        axis.text.x = element_text(angle = 45, hjust = 1))
+
+
+```
+
+
 A priori, the only variables helpful for performing a linear regression predictor are Normalised Atraction Index, Normalised Restraunt Index, number of Bedrooms and Person Capacity. However, is important to recall that we are plotting the individual correlations, maybe if we add information between variables we could get higher correlations, and therefore have better predictions. 
 
 ### Simple linear regression: interpreting the betas
@@ -432,18 +461,9 @@ MSE_best <- sqrt(mean((pred - log(AirbnbTest$Price))^2))
 MSE_best
 ```
 
-```{r}
-complex_linFit <- lm(log(Price) ~ Day , data=AirbnbTrain)
 
-# Predict on the test set
-pred <- exp(predict(complex_linFit, newdata = AirbnbTest))
-  
-  # Calculate MSE
-MSE_complex <- sqrt(mean((pred - log(AirbnbTest$Price))^2))
-MSE_complex
-```
 ```{r}
-day_linFit <- lm(log(Price) ~  Day, data=AirbnbTrain)
+day_linFit <- lm(log(Price) ~  City, data=AirbnbTrain)
 
 # Predict on the test set
 pred <- exp(predict(day_linFit, newdata = AirbnbTest))
@@ -451,53 +471,23 @@ pred <- exp(predict(day_linFit, newdata = AirbnbTest))
   # Calculate MSE
 MSE_day <- sqrt(mean((pred - log(AirbnbTest$Price))^2))
 MSE_day
+
+variables_to_add <- names(AirbnbTrain)
+variables_to_add
 ```
-
-
-
-intenteando quitar outliers del dataset:
-
 ```{r}
-# Supongamos que AirbnbTrain es tu conjunto de datos
-# y Price es la variable que quieres limpiar de outliers
-
-# Calcula los límites superior e inferior del boxplot
-Q1 <- quantile(Airbnb$Price, 0.25)
-Q3 <- quantile(Airbnb$Price, 0.75)
-IQR <- Q3 - Q1
-lower_limit <- Q1 - 1.5 * IQR
-upper_limit <- Q3 + 1.5 * IQR
-
-# Filtra los valores que están dentro de los límites
-Airbnb_cleaned <- subset(Airbnb, Price >= lower_limit & Price <= upper_limit)
-
-# Ahora, AirbnbTrain_cleaned no contiene outliers en la variable Price
-
-# split between training and testing sets
-spl = createDataPartition(Airbnb$Price, p = 0.8, list = FALSE)  # 80% for training
-
-AirbnbTrain_new = Airbnb_cleaned[spl,]
-AirbnbTest_new = Airbnb_cleaned[-spl,]
-
-
-bench_linFit_new <- lm(log(Price) ~ 1 , data=AirbnbTrain_new)
+complex_linFit <- lm(log(Price) ~ ., data=AirbnbTrain)
 
 # Predict on the test set
-pred <- exp(predict(bench_linFit_new, newdata = AirbnbTest_new))
+pred <- exp(predict(complex_linFit, newdata = AirbnbTest))
   
   # Calculate MSE
-bench_MSE_new <- sqrt(mean((pred - log(AirbnbTest_new$Price))^2))
-bench_MSE_new
-
-complex_linFit_new <- lm(log(Price) ~ Day*(Normalised.Attraction.Index + Normalised.Restraunt.Index)^2 , data=AirbnbTrain_new)
-
-# Predict on the test set
-pred <- exp(predict(complex_linFit_new, newdata = AirbnbTest_new))
-  
-  # Calculate MSE
-complex_MSE_new <- sqrt(mean((pred - log(AirbnbTest_new$Price))^2))
-complex_MSE_new
+MSE_all <- sqrt(mean((pred - log(AirbnbTest$Price))^2))
+MSE_all
 ```
+
+
+
 
 
 ### Prediction Intervals
