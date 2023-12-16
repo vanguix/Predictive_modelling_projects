@@ -18,24 +18,24 @@ During this project, we will analyse two data sets in order to obtain more insig
 For the first part of the assignment we will be using the Airbnb data set. It consist of information about the Airbnb stays in some European cities. The variables are the following:
 
 -   City: Amsterdam, Athens, Barcelona, Berlin, Budapest, Lisbon, Paris, Rome or Vienna
--   Price: per day?
+-   Price: continuous numeric variable
 -   Day: WeekDay or Weekend
--   Room Type: Private room, ???
--   Shared Room: true or false
--   Private Room: true or false
+-   Room Type: Entire home/apt, Private room or Shared room
+-   Shared Room: binary variable
+-   Private Room: binary variable
 -   Person capacity: integer from 2 to 6.
--   Superhost: True or false
--   Multiple Rooms: 0 or 1
--   Business: 0 or 1
+-   Superhost: binary variable
+-   Multiple Rooms: binary variable
+-   Business: binary variable
 -   Cleanliness Rating: integer from 2 to 10.
--   Guest satisfaction: continuous
+-   Guest satisfaction: continuous numeric variable
 -   Bedrooms: integer from 0 to 10
--   City center(km): continuous
--   Metro distance(km): continuous
--   Attraction index: continuous variable measuring the atraction to the Airbnb by the costumers
--   Normalised Atraction index: same
+-   City center(km): continuous numeric variable
+-   Metro distance(km): continuous numeric variable
+-   Attraction index: continuous variable measuring the attraction to the Airbnb by the costumers
+-   Normalised Atraction index: same but normalised
 -   Restraunt Index: continuous variable measuring the restaurant performance index
--   Normalised Restraunt Index: same
+-   Normalised Restraunt Index: same but normalised
 
 The goal would be to predict the Price variable in terms of the others. First, it is always a good idea to separate from the beginning the training set (what the tool is going to see) from the testing set (used only to validate predictions)
 
@@ -84,7 +84,7 @@ The maximum of price seems to be too large for the mean and median. We can get a
 boxplot(AirbnbTrain$Price)
 ```
 
-Although the maximum is an outlier is not alone, we can observe many outlier that could be representing expensive Airbnb. In the case the maximum would be alone, we could get rid of it, but in this case this can be meaningful data.
+Although the maximum is an outlier, it is not alone, as we can observe many other outliers that could be representing expensive Airbnb. In the case the maximum would be alone, we could get rid of it, but in this case this can be meaningful data.
 
 ##### Attraction.Index and Restraunt.Index
 
@@ -128,7 +128,7 @@ AirbnbTrain$Superhost<-as.numeric(as.logical(AirbnbTrain$Superhost))
 In order to better comprehend our data, we need to plot it. Concretely, we will have in mind plots respect to the objective variable, the price, for trying to visualize a model for predicting it.
 
 ```{r}
-ggplot(AirbnbTrain, aes(Price)) + geom_density(fill="lightblue") + xlab("log(Price)") + ggtitle("Price distribution")
+ggplot(AirbnbTrain, aes(Price)) + geom_density(fill="lightblue") + xlab("Price") + ggtitle("Price distribution")
 
 ## from the statistics obtained before we know price has no 0 values as minimum is 34, so we can apply the logarithm to better visualize it
 
@@ -140,10 +140,10 @@ exp(mean(log(AirbnbTrain$Price)))
 
 
 ```
+As can be observed, Price is positive asymmetric, as most of the data is located at the left of the distribution. In order to make the data more symmetric, we need to take the logarithm.
+The log(Price) seems to follow a Gaussian distribution with mean 5.36 (214.2107 €). This is beneficial in terms of future prediction of the target, as it is symetrical there are no much extreme values and the regresion would make better predictions. However, still after the transformation the data are not fully centered, but are slightly  shifted to the left. 
 
-The log(Price) seems to follow a Gaussian distribution with mean 5.36 (214.2107 €). This is beneficial in terms of future prediction of the target, as it is symetrical there are no much extreme values and the regresion would make better predictions.
-
-We now have in mind the Prices in terms of the city, in order to better understand the data.
+After observing the response variable alone, we can approximate some regressions with plots. We now have in mind the Prices in terms of the city, in order to better understand the data.
 
 ```{r}
 ggplot(AirbnbTrain, aes(log(Price))) + geom_density(aes(group=City, colour=City, fill=City), alpha=0.1) + ggtitle("Price distribution")
@@ -185,7 +185,6 @@ ggplot(AirbnbTrain, aes(x=Normalised.Restraunt.Index, y=log(Price), color=City))
 ```
 
 Finally, the indexes did not provide as much information. But, focusing on the Restaurant index we could visualize a kind of linear tendency with lower prices on the ones with lower index and higher prices close to higher index rating. However, is still difficult to make assumptions without an appropiate model. In the following sections this relationship would be better explained.
-
 
 ### Correlations
 
@@ -236,25 +235,24 @@ ggplot(corr_data, aes(x = variable, y = correlation)) +
 
 ```
 
-
-A priori, the only variables helpful for performing a linear regression predictor are Normalised Atraction Index, Normalised Restraunt Index, number of Bedrooms and Person Capacity. However, is important to recall that we are plotting the individual correlations, maybe if we add information between variables we could get higher correlations, and therefore have better predictions. 
+A priori, the only variables helpful for performing a linear regression predictor are Normalised Atraction Index, Normalised Restraunt Index, number of Bedrooms and Person Capacity. However, is important to recall that we are plotting the individual correlations, maybe if we add information between variables we could get higher correlations, and therefore have better predictions.
 
 ### Simple linear regression: interpreting the betas
 
-Before developing a complex model for prediction, we will try to create a simpler one where we avoid colinearities and better understand the betas. Therefore, we first create a simple linear regressor with the higher correlation variable: Normalised Atraction Index. 
+Before developing a complex model for prediction, we will try to create a simpler one where we avoid colinearities and better understand the betas. Therefore, we first create a simple linear regressor with the higher correlation variable: Normalised Atraction Index.
 
 ```{r}
 simple_linFit <- lm(log(Price) ~ Normalised.Attraction.Index, data=AirbnbTrain)
 summary(simple_linFit)
 ```
-The simple linear regression model is defined as: 
-$log(Price) = \beta_0 + \beta_1 N.Attraction.Index= 5.01 + 0.03 N.Attraction.Index$
 
-where $\beta_1$ explains that a 1 unit increase in the normalized attraction index would increase in 0.03 % the log of the Price. We can trust this model because the information gain is larger than the noise, as the p_value close to 0 confirms. 
+The simple linear regression model is defined as: $log(Price) = \beta_0 + \beta_1 N.Attraction.Index= 5.01 + 0.03 N.Attraction.Index$
+
+where $\beta_1$ explains that a 1 unit increase in the normalized attraction index would increase in 0.03 % the log of the Price. We can trust this model because the information gain is larger than the noise, as the p_value close to 0 confirms.
 
 Furthermore, focusing on the global information, the residual standard error, although is larger than the local, is still not that high. The residual standard error is higher than the local because there is not much information gain from the model, however, we can trust the model as the information that $\beta_1$ gives us has small standard error.
 
-Finally, the R squared tell us about the information gain we get from the model. Almost 20%, while the remaining 80% is noise. Although this could seem a bad result, we would need to compare with a benchmark for better conclusions (on the following sections). 
+Finally, the $R^2$ tell us about the information gain we get from the model. Almost 20%, while the remaining 80% is noise. In general, this is a difficult application, as the most correlated variable is only giving us 20% of the information, so it would be difficult to obtain high $R^2$ values on the test set. However, we always need to compare with a benchmark for better conclusions (on the following sections).
 
 To better comprehend how this model approaches the price prediction we will plot the regression line:
 
@@ -274,12 +272,23 @@ pred_simple= exp(predict(simple_linFit, newdata= AirbnbTest))
 
 #Let's know validate the predictions, calculating R^2 in the testing set
 
-R2_simple= cor(pred_simple, AirbnbTest$Price)^2
+R2_simple= cor(pred_simple, log(AirbnbTest$Price))^2
 R2_simple
 ```
+
+
 As expected, $R^2$ on the testing set is smaller than on the training set (remember it was 0.2). Always is more difficult to predict future values than present ones.
 
-Diagnosis??
+Finally, we can perform some diagnosis of our simple model to obtain more conclusions:
+
+- Residuals vs Fitted Values: this plot show as how our model is not homoscedastic, that is, he variance of the residuals is not constant with the Price, but it increases (negatively) for higher prices. This can be explained by the non symmetric distribution and the outliers.
+
+- Q-Q Residuals: the residuals are not normally distributed, as the outliers in the tails of the plot suggest issues with extreme residuals.
+
+- Scale-Location Plot: again this plots confirm us our model is not homocedastic, as there is a clear deviation on the line.
+
+
+In general, we can say our model is not good for our objective.
 ```{r}
 par(mar = c(2, 2, 2, 2))
 
@@ -292,8 +301,7 @@ After understanding better how our data is constructed and being defined a simpl
 
 ### Benchmark
 
-In our case, as we are dealing with numerical continuous target, we would consider the benchmark as predicting the mean (again using the logarithmic transformation). This would be similar to the following model:
-$log(price)= \beta_0 \times 1$
+In our case, as we are dealing with numerical continuous target, we would consider the benchmark as predicting the mean (again using the logarithmic transformation). This would be similar to the following model: $log(price)= \beta_0 \times 1$
 
 ```{r}
 benchFit <- lm(log(Price) ~ 1, data=AirbnbTrain)
@@ -301,7 +309,7 @@ pred_bench <- exp(predict(benchFit, newdata=AirbnbTest))
 ```
 
 As on the mean predictor the $R^2$ can not be computed, we will use the Mean Squared Error for comparison:
- 
+
 ```{r}
 #MSE comparison: my model vs benchmark
 MSE_simple=sqrt(mean((pred_simple - log(AirbnbTest$Price))^2))
@@ -309,34 +317,57 @@ MSE_bench= sqrt(mean((pred_bench - log(AirbnbTest$Price))^2))
 MSE_simple
 MSE_bench
 ```
+
 Clearly, our simple model is worse than the naive model, so we need to improve it.
- 
 
-### Final model (with interactions)
+### Complex model (without interactions)
 
-interpret!!
-
-We will try the stepwise method. By default, when you use step() for model selection in linear regression, it tries to minimize the AIC. The AIC is a measure that balances the goodness of fit of the model with the complexity of the model (number of parameters). Lower AIC values indicate better models.
+As a first approach to find our perfect model, we would fit a model with all the variables we have. To do it, we first must change the format of the variable 'Superhost' on the test set for non finding programmatical errors when calculating the predictions.
 
 ```{r}
 AirbnbTest$Superhost<-as.numeric(as.logical(AirbnbTest$Superhost))
 
 ```
 
+```{r}
+all_linFit <- lm(log(Price) ~ ., data=AirbnbTrain)
+
+# Predict on the test set
+pred_all <- exp(predict(all_linFit, newdata = AirbnbTest))
+  
+  # Calculate MSE
+MSE_all <- sqrt(mean((pred_all - log(AirbnbTest$Price))^2))
+R2_all= cor(pred_all, log(AirbnbTest$Price))^2
+summary(all_linFit)
+R2_all
+MSE_all
+```
+
+First, if we compare the $R^2$ values in the training and in the testing sets with the simple model, before we had  0.2 and 0.016, respectively. The value for the training set has increased until 0.66 by using all the variables, and the value on the testing set has increased on 10% until 0.16. Of course, this complex model is better than the simpler one.
+
+However, when comparing with the MSE, we can see how this model has the worst score with 268.068, followed by the simple with 240, and again the benchmark is the best one with 208.068.
+
+In order to try to improve this metrics, now we need to take into account interactions between variables. 
+
+### Complex model (with interactions)
+
+We first start by doing some feature selection, as does not have any sense to add all the features because we will be adding more noise. Therefore, we would try to find the best combination of the most correlated variables: Normalised.Attraction.Index, Normalised.Restraunt.Index, Bedrooms and Person.Capacity.
 
 ```{r}
-# Store the response variable
 Y <- log(AirbnbTrain$Price)
 
-# Variables to add
-variables_to_add <- names(AirbnbTrain)[-1]
+#variables_to_add= list("Normalised.Attraction.Index", "Normalised.Restraunt.Index", "Bedrooms", "Person.Capacity")
+
+#variables_to_add= list( "Bedrooms", "Person.Capacity", "Normalised.Attraction.Index", "Normalised.Restraunt.Index")
+
+#variables_to_add= list("Bedrooms", "Normalised.Attraction.Index", "Normalised.Restraunt.Index",  "Person.Capacity")
+
+variables_to_add= list("Person.Capacity", "Normalised.Attraction.Index", "Normalised.Restraunt.Index", "Bedrooms" )
 
 # Create an empty data frame to store models and MSE
-mse_df <- data.frame(MSE = numeric(length(variables_to_add)), Variables = character(length(variables_to_add)), stringsAsFactors = FALSE)
+mse_df <- data.frame(MSE = numeric(length(variables_to_add)), R2= numeric(length(variables_to_add)), Variables = character(length(variables_to_add)), stringsAsFactors = FALSE)
 
 models <- list()
-
-
 
 # Fit models and calculate MSE
 for (i in seq_along(variables_to_add)) {
@@ -352,115 +383,36 @@ for (i in seq_along(variables_to_add)) {
   # Calculate MSE
   mse <- sqrt(mean((pred - log(AirbnbTest$Price))^2))
   
+  R2= cor(pred, log(AirbnbTest$Price))^2
+
   # Store MSE and variables in the data frame
   mse_df[i, "MSE"] <- mse
-  mse_df[i, "Variables"] <- paste(variables_to_add[1:i], collapse = ", ")
-}
-
-# Add MSE for the benchmark model
-mse_df[length(mse_df), c("MSE", "Variables")] <- c(MSE_bench, "Benchmark Model")
-# Find the model with the lowest MSE
-best_model_index <- which.min(mse_df$MSE)
-best_model <- models[[best_model_index]]
-
-# Print results
-cat("Best model includes variables:", mse_df$Variables[best_model_index], "\n")
-cat("MSE of the best model:", mse_df$MSE[best_model_index], "\n")
-```
-```{r}
-Y <- log(AirbnbTrain$Price)
-
-variables_to_add= list("Normalised.Attraction.Index", "Normalised.Restraunt.Index", "Bedrooms", "Person.Capacity")
-
-# Create an empty data frame to store models and MSE
-mse_df <- data.frame(MSE = numeric(length(variables_to_add)), Variables = character(length(variables_to_add)), stringsAsFactors = FALSE)
-
-models <- list()
-
-
-
-# Fit models and calculate MSE
-for (i in seq_along(variables_to_add)) {
-  formula <- as.formula(paste("Y ~ ", paste(variables_to_add[1:i], collapse = " + ")))
-  model <- lm(formula, data = AirbnbTrain)
-  
-  # Store the model
-  models[[i]] <- model
-  
-  # Predict on the test set
-  pred <- exp(predict(model, newdata = AirbnbTest))
-  
-  # Calculate MSE
-  mse <- sqrt(mean((pred - log(AirbnbTest$Price))^2))
-  
-  # Store MSE and variables in the data frame
-  mse_df[i, "MSE"] <- mse
+  mse_df[i, "R2"] <- R2
   mse_df[i, "Variables"] <- paste(variables_to_add[1:i], collapse = ", ")
 }
 
 # Find the model with the lowest MSE
-best_model_index <- which.min(mse_df$MSE)
+best_model_index <- which.max(mse_df$R2)
 best_model <- models[[best_model_index]]
 
 # Print results
 cat("Best model includes variables:", mse_df$Variables[best_model_index], "\n")
-cat("MSE of the best model:", mse_df$MSE[best_model_index], "\n")
+cat("R2 of the best model:", mse_df$R2[best_model_index], "\n")
 
 ```
 
 ```{r}
-Y <- log(AirbnbTrain$Price)
-
-variables_to_add= list("Normalised.Attraction.Index", "Normalised.Restraunt.Index", "Multiple.Rooms", "City.Center..km.", "Metro.Distance..km.", "Superhost")
-
-# Create an empty data frame to store models and MSE
-mse_df <- data.frame(MSE = numeric(length(variables_to_add)), Variables = character(length(variables_to_add)), stringsAsFactors = FALSE)
-
-models <- list()
-
-
-
-# Fit models and calculate MSE
-for (i in seq_along(variables_to_add)) {
-  formula <- as.formula(paste("Y ~ ", paste(variables_to_add[1:i], collapse = " + ")))
-  model <- lm(formula, data = AirbnbTrain)
-  
-  # Store the model
-  models[[i]] <- model
-  
-  # Predict on the test set
-  pred <- exp(predict(model, newdata = AirbnbTest))
-  
-  # Calculate MSE
-  mse <- sqrt(mean((pred - log(AirbnbTest$Price))^2))
-  
-  # Store MSE and variables in the data frame
-  mse_df[i, "MSE"] <- mse
-  mse_df[i, "Variables"] <- paste(variables_to_add[1:i], collapse = ", ")
-}
-
-# Find the model with the lowest MSE
-best_model_index <- which.min(mse_df$MSE)
-best_model <- models[[best_model_index]]
-
-# Print results
-cat("Best model includes variables:", mse_df$Variables[best_model_index], "\n")
-cat("MSE of the best model:", mse_df$MSE[best_model_index], "\n")
-
-```
-
-
-```{r}
-best_linFit <- lm(log(Price) ~ Multiple.Rooms*(Normalised.Attraction.Index + Normalised.Restraunt.Index)^2 , data=AirbnbTrain)
+best_linFit <- lm(log(Price) ~ City*(Normalised.Attraction.Index + Normalised.Restraunt.Index)^2 , data=AirbnbTrain)
 
 # Predict on the test set
 pred <- exp(predict(best_linFit, newdata = AirbnbTest))
   
   # Calculate MSE
 MSE_best <- sqrt(mean((pred - log(AirbnbTest$Price))^2))
+R2_best= cor(pred, log(AirbnbTest$Price))^2
+R2_best
 MSE_best
 ```
-
 
 ```{r}
 day_linFit <- lm(log(Price) ~  City, data=AirbnbTrain)
@@ -470,29 +422,16 @@ pred <- exp(predict(day_linFit, newdata = AirbnbTest))
   
   # Calculate MSE
 MSE_day <- sqrt(mean((pred - log(AirbnbTest$Price))^2))
+R2_best= cor(pred, log(AirbnbTest$Price))^2
+R2_best
 MSE_day
 
-variables_to_add <- names(AirbnbTrain)
-variables_to_add
+
 ```
-```{r}
-complex_linFit <- lm(log(Price) ~ ., data=AirbnbTrain)
-
-# Predict on the test set
-pred <- exp(predict(complex_linFit, newdata = AirbnbTest))
-  
-  # Calculate MSE
-MSE_all <- sqrt(mean((pred - log(AirbnbTest$Price))^2))
-MSE_all
-```
-
-
 
 
 
 ### Prediction Intervals
-
-
 
 # Generalised Linear Models
 
