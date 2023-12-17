@@ -140,8 +140,8 @@ exp(mean(log(AirbnbTrain$Price)))
 
 
 ```
-As can be observed, Price is positive asymmetric, as most of the data is located at the left of the distribution. In order to make the data more symmetric, we need to take the logarithm.
-The log(Price) seems to follow a Gaussian distribution with mean 5.36 (214.2107 €). This is beneficial in terms of future prediction of the target, as it is symetrical there are no much extreme values and the regresion would make better predictions. However, still after the transformation the data are not fully centered, but are slightly  shifted to the left. 
+
+As can be observed, Price is positive asymmetric, as most of the data is located at the left of the distribution. In order to make the data more symmetric, we need to take the logarithm. The log(Price) seems to follow a Gaussian distribution with mean 5.36 (214.2107 €). This is beneficial in terms of future prediction of the target, as it is symetrical there are no much extreme values and the regresion would make better predictions. However, still after the transformation the data are not fully centered, but are slightly shifted to the left.
 
 After observing the response variable alone, we can approximate some regressions with plots. We now have in mind the Prices in terms of the city, in order to better understand the data.
 
@@ -207,32 +207,7 @@ ggplot(corr,aes(x = row.names(corr), y = corr_delay)) +
         axis.text.x = element_text(angle = 45, hjust = 1))
 ```
 
-```{r}
-# Assuming you have loaded the required libraries
-library(ggcorrplot)
-
-# Compute the correlation matrix
-cor_matrix <- cor(AirbnbTrain[, c(4:15)])
-
-# Create a correlation matrix plot using ggcorrplot
-ggcorrplot(cor_matrix,
-           colors = c("lightblue", "white", "lightcoral"),  # Define color scale
-           lab = FALSE,  # Show correlation values
-           lab_size = 1,  # Set label size
-           title = "Correlation Matrix")
-
-# If you still want to plot the correlations with the response variable "Price"
-corr_delay <- sort(cor_matrix["Price", ], decreasing = TRUE)
-corr_data <- data.frame(variable = names(corr_delay), correlation = corr_delay)
-
-# Plot the correlations
-ggplot(corr_data, aes(x = variable, y = correlation)) +
-  geom_bar(stat = "identity", fill = "lightblue") +
-  labs(x = "", y = "Correlation with Price", title = "Variable Correlations") +
-  theme(plot.title = element_text(hjust = 0.5, size = rel(1.5)),
-        axis.text.x = element_text(angle = 45, hjust = 1))
-
-
+```{}
 ```
 
 A priori, the only variables helpful for performing a linear regression predictor are Normalised Atraction Index, Normalised Restraunt Index, number of Bedrooms and Person Capacity. However, is important to recall that we are plotting the individual correlations, maybe if we add information between variables we could get higher correlations, and therefore have better predictions.
@@ -276,19 +251,18 @@ R2_simple= cor(pred_simple, log(AirbnbTest$Price))^2
 R2_simple
 ```
 
-
 As expected, $R^2$ on the testing set is smaller than on the training set (remember it was 0.2). Always is more difficult to predict future values than present ones.
 
 Finally, we can perform some diagnosis of our simple model to obtain more conclusions:
 
-- Residuals vs Fitted Values: this plot show as how our model is not homoscedastic, that is, he variance of the residuals is not constant with the Price, but it increases (negatively) for higher prices. This can be explained by the non symmetric distribution and the outliers.
+-   Residuals vs Fitted Values: this plot show as how our model is not homoscedastic, that is, he variance of the residuals is not constant with the Price, but it increases (negatively) for higher prices. This can be explained by the non symmetric distribution and the outliers.
 
-- Q-Q Residuals: the residuals are not normally distributed, as the outliers in the tails of the plot suggest issues with extreme residuals.
+-   Q-Q Residuals: the residuals are not normally distributed, as the outliers in the tails of the plot suggest issues with extreme residuals.
 
-- Scale-Location Plot: again this plots confirm us our model is not homocedastic, as there is a clear deviation on the line.
-
+-   Scale-Location Plot: again this plots confirm us our model is not homocedastic, as there is a clear deviation on the line.
 
 In general, we can say our model is not good for our objective.
+
 ```{r}
 par(mar = c(2, 2, 2, 2))
 
@@ -343,26 +317,26 @@ R2_all
 MSE_all
 ```
 
-First, if we compare the $R^2$ values in the training and in the testing sets with the simple model, before we had  0.2 and 0.016, respectively. The value for the training set has increased until 0.66 by using all the variables, and the value on the testing set has increased on 10% until 0.16. Of course, this complex model is better than the simpler one.
+First, if we compare the $R^2$ values in the training and in the testing sets with the simple model, before we had 0.2 and 0.016, respectively. The value for the training set has increased until 0.66 by using all the variables, and the value on the testing set has increased on 10% until 0.16. Of course, this complex model is better than the simpler one.
 
 However, when comparing with the MSE, we can see how this model has the worst score with 268.068, followed by the simple with 240, and again the benchmark is the best one with 208.068.
 
-In order to try to improve this metrics, now we need to take into account interactions between variables. 
+In order to try to improve this metrics, now we need to take into account interactions between variables.
 
 ### Complex model (with interactions)
 
-We first start by doing some feature selection, as does not have any sense to add all the features because we will be adding more noise. Therefore, we would try to find the best combination of the most correlated variables: Normalised.Attraction.Index, Normalised.Restraunt.Index, Bedrooms and Person.Capacity.
+We first start by doing some feature selection, as does not have any sense to add all the features because we will be adding more noise. Therefore, we would try to find the best combination of the most correlated variables: Normalised.Attraction.Index, Normalised.Restraunt.Index, Bedrooms and Person.Capacity.In order to do it, we will focus on both the $R^2$ and the MSE, trying to find the model that best maximizes the first one while minimazing the second one.
 
 ```{r}
 Y <- log(AirbnbTrain$Price)
 
-#variables_to_add= list("Normalised.Attraction.Index", "Normalised.Restraunt.Index", "Bedrooms", "Person.Capacity")
+variables_to_add= list("Normalised.Attraction.Index", "Normalised.Restraunt.Index", "Bedrooms", "Person.Capacity")
 
 #variables_to_add= list( "Bedrooms", "Person.Capacity", "Normalised.Attraction.Index", "Normalised.Restraunt.Index")
 
 #variables_to_add= list("Bedrooms", "Normalised.Attraction.Index", "Normalised.Restraunt.Index",  "Person.Capacity")
 
-variables_to_add= list("Person.Capacity", "Normalised.Attraction.Index", "Normalised.Restraunt.Index", "Bedrooms" )
+#variables_to_add= list("Person.Capacity", "Normalised.Attraction.Index", "Normalised.Restraunt.Index", "Bedrooms" )
 
 # Create an empty data frame to store models and MSE
 mse_df <- data.frame(MSE = numeric(length(variables_to_add)), R2= numeric(length(variables_to_add)), Variables = character(length(variables_to_add)), stringsAsFactors = FALSE)
@@ -392,46 +366,81 @@ for (i in seq_along(variables_to_add)) {
 }
 
 # Find the model with the lowest MSE
-best_model_index <- which.max(mse_df$R2)
+best_model_index <- which.min(mse_df$MSE)
 best_model <- models[[best_model_index]]
 
 # Print results
 cat("Best model includes variables:", mse_df$Variables[best_model_index], "\n")
+cat("MSE of the best model:", mse_df$MSE[best_model_index], "\n")
 cat("R2 of the best model:", mse_df$R2[best_model_index], "\n")
+mse_df
 
 ```
 
+After trying several combinations, we lead to the conclusion that, althought adding the Bedrooms and Person.Capacity variables may increase the R2, meaning is adding information, it also adds noise as the MSE increases a lot. By the MSE the best model is the one with only the first two variables (the ones more correlated), but we will choose to add also Bedrooms so $R^2$ is bigger enougth.
+
+Now, let's try to add interactions with the categorical variables
+
 ```{r}
-best_linFit <- lm(log(Price) ~ City*(Normalised.Attraction.Index + Normalised.Restraunt.Index)^2 , data=AirbnbTrain)
+best_linFit <- lm(log(Price) ~ City*(Normalised.Attraction.Index + Normalised.Restraunt.Index)^2 + sqrt(Bedrooms) , data=AirbnbTrain)
 
 # Predict on the test set
-pred <- exp(predict(best_linFit, newdata = AirbnbTest))
+pred_best <- exp(predict(best_linFit, newdata = AirbnbTest))
   
   # Calculate MSE
-MSE_best <- sqrt(mean((pred - log(AirbnbTest$Price))^2))
+MSE_best <- sqrt(mean((pred_best - log(AirbnbTest$Price))^2))
 R2_best= cor(pred, log(AirbnbTest$Price))^2
 R2_best
 MSE_best
 ```
 
-```{r}
-day_linFit <- lm(log(Price) ~  City, data=AirbnbTrain)
-
-# Predict on the test set
-pred <- exp(predict(day_linFit, newdata = AirbnbTest))
-  
-  # Calculate MSE
-MSE_day <- sqrt(mean((pred - log(AirbnbTest$Price))^2))
-R2_best= cor(pred, log(AirbnbTest$Price))^2
-R2_best
-MSE_day
-
-
-```
-
-
+As we have said before, this is a difficult application, as many of the variables do not add enougth information. After trying many combinations, we have lead to a model with $R^2=0.46$ and $MSE = 253.85$. Having in mind previous results, we have not been able to improve the benchmark, but we have been able to reduce the noise from the model with all the variables while maintaining the information gain.
 
 ### Prediction Intervals
+
+Finally, we would evaluate the predictions of our model with the prediction intervals.
+
+```{r}
+pred_best <- predict(best_linFit, newdata = AirbnbTest, interval='prediction')
+
+y = AirbnbTest$Price
+yhat = exp(pred_best)
+
+# Assuming pred.log contains the lower and upper prediction intervals
+AirbnbTest$Pred = exp(pred_best[, "fit"])
+AirbnbTest$Real = y
+AirbnbTest$Lower = exp(pred_best[, "lwr"])
+AirbnbTest$Upper = exp(pred_best[, "upr"])
+
+# Create a data frame for plotting
+plot_data <- data.frame(Real = AirbnbTest$Real,
+                        Pred = AirbnbTest$Pred,
+                        Lower = AirbnbTest$Lower,
+                        Upper = AirbnbTest$Upper)
+# Prediction Interval Plot
+ggplot(plot_data, aes(x = Real, y = Pred)) +
+  geom_point() +
+  geom_ribbon(aes(ymin = Lower, ymax = Upper), alpha = 0.3, fill = "blue") +
+  labs(title = "Scatter Plot of Real vs. Predicted",
+       x = "Real",
+       y = "Predicted")
+```
+
+As we can observe, most of the points lies inside the shadow of the prediction intervals. To better evaluate the exact quantity we can count them.
+
+```{r}
+# Counting the points outside the intervals
+outside_interval_count <- sum(AirbnbTest$Real < AirbnbTest$Lower | AirbnbTest$Real > AirbnbTest$Upper)
+
+# Calculating the coverage
+total_points <- nrow(AirbnbTest)
+coverage <- round(100-(outside_interval_count / total_points) * 100, digits=1)
+
+# Printing the coverage
+print(paste("Percentage of points inside the intervals:", coverage, "%"))
+```
+
+Finally, our model is covering 95.4 % of the points inside the prediction intervals. That is, although before we determined that our predictions were not that accurate due to bad results on MSE, we can say that our model is useful, as we are capturing well the noise. In general, is more important to focus the performance of a model on the intervals that on exact predictions, as usually we are interested on knowing a close value of the price, but not interested on the exact one.
 
 # Generalised Linear Models
 
