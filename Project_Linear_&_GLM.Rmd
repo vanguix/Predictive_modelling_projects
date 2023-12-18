@@ -43,7 +43,11 @@ The goal would be to predict the Price variable in terms of the others. First, i
 library(tidyverse)
 library(MASS)
 library(caret) #ML tools
-library(e1071) 
+library(e1071)
+```
+
+```{r}
+ 
 par(mar = c(2, 2, 2, 2))
 # Loading and preparing data
 Airbnb <- read.csv("Airbnb_data.csv")
@@ -207,7 +211,7 @@ ggplot(corr,aes(x = row.names(corr), y = corr_delay)) +
         axis.text.x = element_text(angle = 45, hjust = 1))
 ```
 
-```{}
+```         
 ```
 
 A priori, the only variables helpful for performing a linear regression predictor are Normalised Atraction Index, Normalised Restraunt Index, number of Bedrooms and Person Capacity. However, is important to recall that we are plotting the individual correlations, maybe if we add information between variables we could get higher correlations, and therefore have better predictions.
@@ -255,7 +259,7 @@ As expected, $R^2$ on the testing set is smaller than on the training set (remem
 
 Finally, we can perform some diagnosis of our simple model to obtain more conclusions:
 
--   Residuals vs Fitted Values: this plot show as how our model is not homoscedastic, that is, he variance of the residuals is not constant with the Price, but it increases (negatively) for higher prices. This can be explained by the non symmetric distribution and the outliers.
+-   Residuals vs Fitted Values: this plot show as how our model is not homoscedastic, that is, the variance of the residuals is not constant with the Price, but it increases (negatively) for higher prices. This can be explained by the non symmetric distribution and the outliers.
 
 -   Q-Q Residuals: the residuals are not normally distributed, as the outliers in the tails of the plot suggest issues with extreme residuals.
 
@@ -379,7 +383,7 @@ mse_df
 
 After trying several combinations, we lead to the conclusion that, althought adding the Bedrooms and Person.Capacity variables may increase the R2, meaning is adding information, it also adds noise as the MSE increases a lot. By the MSE the best model is the one with only the first two variables (the ones more correlated), but we will choose to add also Bedrooms so $R^2$ is bigger enougth.
 
-Now, let's try to add interactions with the categorical variables
+Now, let's try to add interactions with the categorical variables. After trying several combinations, we lead to the conclusion that City was the most informative variable in order to interact with the indexes. Later, we add Bedrooms and tried several more interactions, however, any improvement was achieved. Finally, the best model we could fit was the following:
 
 ```{r}
 best_linFit <- lm(log(Price) ~ City*(Normalised.Attraction.Index + Normalised.Restraunt.Index)^2 + sqrt(Bedrooms) , data=AirbnbTrain)
@@ -395,6 +399,12 @@ MSE_best
 ```
 
 As we have said before, this is a difficult application, as many of the variables do not add enougth information. After trying many combinations, we have lead to a model with $R^2=0.46$ and $MSE = 253.85$. Having in mind previous results, we have not been able to improve the benchmark, but we have been able to reduce the noise from the model with all the variables while maintaining the information gain.
+
+For better conclusions we can perform some diagnosis. Contrary to the simple model, this one has achieved to be more homocedastic, having constant variance of the residuals and better distribution in general.
+
+```{r}
+plot(best_linFit, pch=23 ,bg='orange',cex=2)
+```
 
 ### Prediction Intervals
 
@@ -446,6 +456,273 @@ Finally, our model is covering 95.4 % of the points inside the prediction interv
 
 ## Data preparation
 
+explicar el dataset
+
+la objetivo es el salario en concreto el de Avg.Salary.K, que es la media de del salario para ese puesto
+```{r}
+Salary_data <- read.csv("Data_Analyst_Jobs.csv")
+```
+
+
+tipos de variables: tenemos categoricas, numericas y binarias.
+
+```{r}
+# split between training and testing sets
+spl = createDataPartition(Salary_data$Avg.Salary.K., p = 0.8, list = FALSE)  # 80% for training
+
+Salary_data_Train = Salary_data[spl,]
+Salary_data_Test = Salary_data[-spl,]
+
+str(Salary_data_Train)
+```
+
+
+antes de continuar nos cargamos job description porque es lenguaje natural y es dificil de tratas y dara poca info. Tambien el indice y salary estimate, lower salary y upper salary. porque las 3 dan la misma informacion y estan muy ligadas a la variable objetivo (solo con lowe y upper hacinedo la emdia se saca) entonces no tendria sentido meterlas al modelo
+ Company.Name sobra porque company_txt es lo mismo pero ya limpio y igual con Job.Title y job_title_sim, y con Location (sucia) y Job.Location limpia
+
+
+```{r}
+Salary_data_Train <- subset(Salary_data_Train, select = -c(Job.Description, Job.Title, Location, index, Salary.Estimate, Lower.Salary, Upper.Salary, Company.Name ))
+
+```
+
+
+null values. pone que no hay pero porque estan rellenos como 'na' . hacemos un table de las categoricas para confirmar
+ Columns with value -1 means either the data scraping was unsuccessful for that or the data was not present.
+
+
+```{r}
+any(is.na(Salary_data_Train))
+table(Salary_data_Train$Headquarters)
+
+
+```
+
+de esta primera tanda no hay na
+```{r}
+table(Salary_data_Train$Size)
+table(Salary_data_Train$Type.of.ownership)
+table(Salary_data_Train$Industry )
+table(Salary_data_Train$Sector )
+```
+
+hay algunos unknown y -1 pero en general no preocupa
+
+industry y sector son lo mismo, nos quedamos con la que menos valores unicos tenga
+
+```{r}
+length(unique(Salary_data_Train$Industry))
+length(unique(Salary_data_Train$Sector))
+
+```
+sector será pues: 
+
+```{r}
+Salary_data_Train <- subset(Salary_data_Train, select = -Industry)
+```
+
+
+```{r}
+table(Salary_data_Train$Revenue)
+table(Salary_data_Train$Competitors)
+table(Salary_data_Train$company_txt )
+
+```
+
+
+competitors va fuera porque tiene 372 null de 295
+
+```{r}
+Salary_data_Train <- subset(Salary_data_Train, select = -Competitors)
+
+```
+
+```{r}
+table(Salary_data_Train$Job.Location)
+table(Salary_data_Train$job_title_sim)
+table(Salary_data_Train$seniority_by_title)
+table(Salary_data_Train$Degree)
+```
+
+seniority_by_title y Degree la mayoría es Na, fuera
+
+```{r}
+Salary_data_Train <- subset(Salary_data_Train, select = -c(seniority_by_title,Degree))
+
+```
+
+
+BINARIAS
+
+```{r}
+table(Salary_data_Train$Hourly) # 1: If salary was reported in hourly rate. 0: Otherwise
+table(Salary_data_Train$Employer.provided) # 1: If the salary was provided by the employer 0: Otherwise
+
+# 1: If x skill is required 0: Otherwise
+
+table(Salary_data_Train$Python)
+table(Salary_data_Train$spark)
+table(Salary_data_Train$aws)
+table(Salary_data_Train$excel)
+table(Salary_data_Train$sql)
+table(Salary_data_Train$sas)
+table(Salary_data_Train$keras)
+table(Salary_data_Train$pytorch)
+table(Salary_data_Train$scikit)
+table(Salary_data_Train$tensor)
+table(Salary_data_Train$hadoop)
+table(Salary_data_Train$tableau)
+table(Salary_data_Train$bi)
+table(Salary_data_Train$flink)
+table(Salary_data_Train$mongo)
+table(Salary_data_Train$google_an) #1: If Google analytics certificate is required 0: Otherwise
+
+
+```
+
+
+hay algunas con mucho desbalanceo pero no hay null, asi que las usaremos
+
+NUMERICAS
+
+solo tenemos rating, Founded (año de fundación de la empresa), Age, Avg.Salary.K (objetivo)
+
+primero hacemos table para ver valores nulos (-1)
+```{r}
+table(Salary_data_Train$Rating) # It gives the rating of the company
+table(Salary_data_Train$Founded)# 
+table(Salary_data_Train$Age) # Age of the company (in yrs)
+table(Salary_data_Train$Avg.Salary.K.)
+
+```
+
+no hay muchos, lo dejamos asi
+
+
+```{r}
+summary(Salary_data_Train$Rating) # It gives the rating of the company
+summary(Salary_data_Train$Founded)# aunque es numerica no interesa la media al ser años
+summary(Salary_data_Train$Age) # Age of the company (in yrs)
+summary(Salary_data_Train$Avg.Salary.K.)
+```
+FINAL DATA
+
+```{r}
+Salary_data_Train
+```
+
+## Explanatory Analysis
+
+algunos plots, ver correlaciones y distribucion de la variable objetivo
+
+```{r}
+
+# hacemos la transformacion de la raiz porque es rigth skewed y se centra mas
+ggplot(Salary_data_Train, aes(Avg.Salary.K.)) + geom_density(fill="lightblue") + xlab("Avg Salary") + ggtitle("Avg Salary distribution")
+
+
+ggplot(Salary_data_Train, aes(sqrt(Avg.Salary.K.))) + geom_density(fill="lightblue") + xlab("sqrt(Avg Salary)") + ggtitle("Avg Salary distribution")
+```
+
+
+```{r}
+ggplot(Salary_data_Train, aes(sqrt(Avg.Salary.K.))) + geom_density(aes(group=job_title_sim, colour=job_title_sim, fill=job_title_sim), alpha=0.1) + ggtitle("Salary distribution by job title")
+```
+
+```{r}
+ggplot(Salary_data_Train, aes(x = job_title_sim, y = sqrt(Avg.Salary.K.))) +
+  geom_boxplot() +
+  labs(title = "Boxplot between Avg Salary and Job Title",
+       x = "Job title",
+       y = "sqrt(Avg.Salary.K.)")+
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+```{r}
+ggplot(Salary_data_Train, aes(x = sqrt(Avg.Salary.K.), y = Rating)) +
+  geom_point() +
+  labs(title = "Scatter Plot entre sqrt(Avg.Salary.K.) y Rating",
+       x = "sqrt(Avg.Salary.K.)",
+       y = "Rating")
+```
+
+```{r}
+ggplot(Salary_data_Train, aes(x = sqrt(Avg.Salary.K.), y = Age)) +
+  geom_point() +
+  labs(title = "Scatter Plot entre sqrt(Avg.Salary.K.) y Age",
+       x = "sqrt(Avg.Salary.K.)",
+       y = "Age")
+```
+### Correlations
+
+```{r}
+# Calcular correlaciones
+correlations <- cor(Salary_data_Train[, c("Rating", "Founded", "Hourly", "Avg.Salary.K.", "Employer.provided", "Python", "spark", "aws", "excel", "sql", "sas", "keras", "pytorch", "scikit", "tensor", "hadoop", "tableau", "bi", "flink", "mongo", "google_an")])
+
+# Extraer las correlaciones con la variable objetivo "Avg.Salary.K."
+corr <- sort(correlations["Avg.Salary.K.",], decreasing = F)
+
+# Crear un dataframe con las correlaciones
+corr_df <- data.frame(variable = names(corr), correlation = corr)
+
+# Crear el gráfico de barras
+ggplot(corr_df, aes(x = variable, y = correlation)) +
+  geom_bar(stat = "identity", fill = "lightblue") +
+  labs(x = "", y = "Correlation", title = "Correlations with Avg.Salary.K.") +
+  theme(plot.title = element_text(hjust = 0.5, size = rel(1.5)),
+        axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
 ## Model development and interpretation
 
+primero vamos a hacer un modelo simple  e interpretar los efectos individuales 
+
+```{r}
+first_glm = glm(sqrt(Avg.Salary.K.) ~ Python, family = gaussian, data = Salary_data_Train) 
+summary(first_glm)
+
+pred_f_glm= (predict(first_glm, newdata= Salary_data_Test))^2
+
+#Let's know validate the predictions, calculating R^2 in the testing set
+
+R2_simple= cor(pred_f_glm, log(Salary_data_Test$Avg.Salary.K.))^2
+R2_simple
+```
+INTERPRETAR AQUI LAS BETAS Y LA R2
+
+
+interpretation: affects package
+
+efecto variable 
+
+```{r}
+plot(effect("Python", first_glm), ci.style="band", rescale.axis=FALSE, multiline=TRUE, ylab="sqrt(Avg.Salary.K.)", rug=FALSE, main="")
+```
+
+con este plot vemos como el hecho de que pidan python implica un salario medio mayor
+
+
+MODELO FINAL
+
+```{r}
+
+```
+
+
+chequear los efectos de las cosas nuevas que metamos, de interacciones y ya luego todas de una
+
+
+```{r}
+plot(allEffects(arrests.mod), ci.style="band", rescale.axis=FALSE, multiline=TRUE, ylab="P(released)", rug=FALSE, main="")
+```
+
+
+
 ## Predictive performance
+
+### Benchmark
+
+hacer el benchmarck con la media y comparar MSE
+
+
+### Prediction Intervals
