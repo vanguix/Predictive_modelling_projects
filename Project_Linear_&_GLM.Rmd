@@ -290,10 +290,10 @@ As on the mean predictor the $R^2$ can not be computed, we will use the Mean Squ
 
 ```{r}
 #MSE comparison: my model vs benchmark
-MSE_simple=sqrt(mean((pred_simple - log(AirbnbTest$Price))^2))
-MSE_bench= sqrt(mean((pred_bench - log(AirbnbTest$Price))^2))
-MSE_simple
-MSE_bench
+RMSE_simple=sqrt(mean((pred_simple - log(AirbnbTest$Price))^2))
+RMSE_bench= sqrt(mean((pred_bench - log(AirbnbTest$Price))^2))
+RMSE_simple
+RMSE_bench
 ```
 
 Clearly, our simple model is worse than the naive model, so we need to improve it.
@@ -314,11 +314,11 @@ all_linFit <- lm(log(Price) ~ ., data=AirbnbTrain)
 pred_all <- exp(predict(all_linFit, newdata = AirbnbTest))
   
   # Calculate MSE
-MSE_all <- sqrt(mean((pred_all - log(AirbnbTest$Price))^2))
-R2_all= cor(pred_all, log(AirbnbTest$Price))^2
+RMSE_all <- sqrt(mean((pred_all - AirbnbTest$Price)^2))
+R2_all= cor(pred_all, AirbnbTest$Price)^2
 summary(all_linFit)
 R2_all
-MSE_all
+RMSE_all
 ```
 
 First, if we compare the $R^2$ values in the training and in the testing sets with the simple model, before we had 0.2 and 0.016, respectively. The value for the training set has increased until 0.66 by using all the variables, and the value on the testing set has increased on 10% until 0.16. Of course, this complex model is better than the simpler one.
@@ -342,8 +342,8 @@ variables_to_add= list("Normalised.Attraction.Index", "Normalised.Restraunt.Inde
 
 #variables_to_add= list("Person.Capacity", "Normalised.Attraction.Index", "Normalised.Restraunt.Index", "Bedrooms" )
 
-# Create an empty data frame to store models and MSE
-mse_df <- data.frame(MSE = numeric(length(variables_to_add)), R2= numeric(length(variables_to_add)), Variables = character(length(variables_to_add)), stringsAsFactors = FALSE)
+# Create an empty data frame to store models,R2 and RMSE
+rmse_df <- data.frame(RMSE = numeric(length(variables_to_add)), R2= numeric(length(variables_to_add)), Variables = character(length(variables_to_add)), stringsAsFactors = FALSE)
 
 models <- list()
 
@@ -359,25 +359,25 @@ for (i in seq_along(variables_to_add)) {
   pred <- exp(predict(model, newdata = AirbnbTest))
   
   # Calculate MSE
-  mse <- sqrt(mean((pred - log(AirbnbTest$Price))^2))
+  rmse <- sqrt(mean((pred - log(AirbnbTest$Price))^2))
   
   R2= cor(pred, log(AirbnbTest$Price))^2
 
   # Store MSE and variables in the data frame
-  mse_df[i, "MSE"] <- mse
-  mse_df[i, "R2"] <- R2
-  mse_df[i, "Variables"] <- paste(variables_to_add[1:i], collapse = ", ")
+  rmse_df[i, "MSE"] <- rmse
+  rmse_df[i, "R2"] <- R2
+  rmse_df[i, "Variables"] <- paste(variables_to_add[1:i], collapse = ", ")
 }
 
 # Find the model with the lowest MSE
-best_model_index <- which.min(mse_df$MSE)
+best_model_index <- which.min(rmse_df$MSE)
 best_model <- models[[best_model_index]]
 
 # Print results
-cat("Best model includes variables:", mse_df$Variables[best_model_index], "\n")
-cat("MSE of the best model:", mse_df$MSE[best_model_index], "\n")
-cat("R2 of the best model:", mse_df$R2[best_model_index], "\n")
-mse_df
+cat("Best model includes variables:", rmse_df$Variables[best_model_index], "\n")
+cat("MSE of the best model:", rmse_df$MSE[best_model_index], "\n")
+cat("R2 of the best model:", rmse_df$R2[best_model_index], "\n")
+rmse_df
 
 ```
 
@@ -392,10 +392,10 @@ best_linFit <- lm(log(Price) ~ City*(Normalised.Attraction.Index + Normalised.Re
 pred_best <- exp(predict(best_linFit, newdata = AirbnbTest))
   
   # Calculate MSE
-MSE_best <- sqrt(mean((pred_best - log(AirbnbTest$Price))^2))
+RMSE_best <- sqrt(mean((pred_best - log(AirbnbTest$Price))^2))
 R2_best= cor(pred, log(AirbnbTest$Price))^2
 R2_best
-MSE_best
+RMSE_best
 ```
 
 As we have said before, this is a difficult application, as many of the variables do not add enougth information. After trying many combinations, we have lead to a model with $R^2=0.46$ and $MSE = 253.85$. Having in mind previous results, we have not been able to improve the benchmark, but we have been able to reduce the noise from the model with all the variables while maintaining the information gain.
@@ -456,86 +456,146 @@ Finally, our model is covering 95.4 % of the points inside the prediction interv
 
 ## Data preparation
 
-explicar el dataset
+Continuing with the second dataset, we will focus on predicting the average salary offered on several job postings related to the position of 'Data Scientist'. To do it, we will try to use a Generalised Linear Model, but first, we need to clean our dataset.
 
-la objetivo es el salario en concreto el de Avg.Salary.K, que es la media de del salario para ese puesto
 ```{r}
 Salary_data <- read.csv("Data_Analyst_Jobs.csv")
 ```
 
 
-tipos de variables: tenemos categoricas, numericas y binarias.
+After having some troubles on the following sections, we decided to remove here, before splitting, the rows where the category for 'Sector' and 'Job.Location' only have 1 repeated value. This would not affect the data leakeage on the training and test splitting as we are only removing rows.
 
 ```{r}
-# split between training and testing sets
-spl = createDataPartition(Salary_data$Avg.Salary.K., p = 0.8, list = FALSE)  # 80% for training
+#table(Salary_data$Sector)
+#table(Salary_data$Job.Location)
+```
 
-Salary_data_Train = Salary_data[spl,]
-Salary_data_Test = Salary_data[-spl,]
+```{r}
+# Identify categories with only one row in Job.Location
+categories_to_exclude <- names(which(table(Salary_data$Job.Location) == 1))
 
-str(Salary_data_Train)
+# Filter out rows with categories to exclude
+Salary_data_filtered <- Salary_data[!(Salary_data$Job.Location %in% categories_to_exclude), ]
+
+# Identify categories with only one row in Job.Location
+categories_to_exclude <- names(which(table(Salary_data$Sector) == 1))
+
+# Filter out rows with categories to exclude
+Salary_data_filtered <- Salary_data[!(Salary_data$Sector %in% categories_to_exclude), ]
+
 ```
 
 
-antes de continuar nos cargamos job description porque es lenguaje natural y es dificil de tratas y dara poca info. Tambien el indice y salary estimate, lower salary y upper salary. porque las 3 dan la misma informacion y estan muy ligadas a la variable objetivo (solo con lowe y upper hacinedo la emdia se saca) entonces no tendria sentido meterlas al modelo
- Company.Name sobra porque company_txt es lo mismo pero ya limpio y igual con Job.Title y job_title_sim, y con Location (sucia) y Job.Location limpia
 
+
+
+First, we split on training and test, and evaluate the type of the variables.
+
+```{r}
+# split between training and testing sets
+#spl = createDataPartition(Salary_data$Sector, p = 0.8, list = FALSE)  # 80% for training
+
+#Salary_data_Train = Salary_data[spl,]
+#Salary_data_Test = Salary_data[-spl,]
+
+#str(Salary_data_Train)
+```
+
+```{r}
+# Set seed for reproducibility
+set.seed(123)
+
+# Specify categorical variables
+categorical_vars <- c("Sector", "Job.Location", "Revenue")
+
+# Create data partitions for each categorical variable
+common_indices <- integer(0)
+
+for (var in categorical_vars) {
+  levels_present <- unique(Salary_data_filtered[[var]])
+  
+  # Check if the variable has at least two levels
+  if (length(levels_present) >= 2) {
+    # Create data partition for the current variable
+    partition <- createDataPartition(Salary_data_filtered[[var]], p = 0.8, list = FALSE)
+    
+    # Take the intersection of indices
+    common_indices <- if (length(common_indices) == 0) partition else intersect(common_indices, partition)
+  }
+}
+
+# Use common indices to subset the data
+Salary_data_Train <- Salary_data_filtered[common_indices, ]
+Salary_data_Test <- Salary_data_filtered[-common_indices, ]
+```
+
+
+The objective variable would be 'Avg.Salary.K', that is an already cleaned variable from 'Salary.Estimate', measuring the mean of the salaries offer in thousands of dollars. Therefore, we could get rid of this last variable.
+
+Apart from this one, we could observe several other variables that are already clean on another column, as 'Company.Name' and 'company_txt', 'Job.Title' and 'job_title_sim', and finally, 'Location' and 'Job.Location'.
+
+Other variables we would eliminate are the 'Job.Description', as is a natural language column that would not gives as any valuable information. Similarly, index is not giving any information so would be also eliminated.
+
+Finally, 'Lower.Salary' and 'Upper.Salary' would be erased as they can easily predict the objective variable by performing the mean of the two, so would be useless to develop a complete model if they alone can predict it.
 
 ```{r}
 Salary_data_Train <- subset(Salary_data_Train, select = -c(Job.Description, Job.Title, Location, index, Salary.Estimate, Lower.Salary, Upper.Salary, Company.Name ))
 
 ```
 
+### Null values and categorical variables
 
-null values. pone que no hay pero porque estan rellenos como 'na' . hacemos un table de las categoricas para confirmar
- Columns with value -1 means either the data scraping was unsuccessful for that or the data was not present.
-
+With the remaining features, we need to evaluate the null values. Although it can seem there is none, is because they are set as 'na' or '-1'. Columns with value -1 means either the data scraping was unsuccessful for that or the data was not present. Therefore, we would evaluate the classes of the features to observe if the null values comprehend a significant quantity.
 
 ```{r}
 any(is.na(Salary_data_Train))
-table(Salary_data_Train$Headquarters)
-
-
 ```
 
-de esta primera tanda no hay na
+We can observe some null values on these first set of features, but not as much to be considered significant.
+!!!!!!!!!!!Eliminar headquearters es una mierda 
+
 ```{r}
+#table(Salary_data_Train$Headquarters)
 table(Salary_data_Train$Size)
 table(Salary_data_Train$Type.of.ownership)
-table(Salary_data_Train$Industry )
+#table(Salary_data_Train$Industry )
 table(Salary_data_Train$Sector )
+
+Salary_data_Train <- subset(Salary_data_Train, select = -Headquarters)
+
 ```
 
-hay algunos unknown y -1 pero en general no preocupa
-
-industry y sector son lo mismo, nos quedamos con la que menos valores unicos tenga
+The following variables 'Industry' and 'Sector' represents the same, so we would only keep the one with less unique values.
 
 ```{r}
 length(unique(Salary_data_Train$Industry))
 length(unique(Salary_data_Train$Sector))
 
 ```
-sector será pues: 
+
+We keep the 'Sector' one.
 
 ```{r}
 Salary_data_Train <- subset(Salary_data_Train, select = -Industry)
+
 ```
 
+Finishing with the null, 'Competitors' would be erased due to having 372 null rows of 595. 'Revenue' has 156 of 595, is almost 30% of the rows, however, we will try to keep them, as the remaining ones could have significant information. 'company_txt' would also be removed due to having too many unique values.
 
 ```{r}
 table(Salary_data_Train$Revenue)
-table(Salary_data_Train$Competitors)
-table(Salary_data_Train$company_txt )
+#table(Salary_data_Train$Competitors)
+#table(Salary_data_Train$company_txt )
 
 ```
-
-
-competitors va fuera porque tiene 372 null de 295
 
 ```{r}
-Salary_data_Train <- subset(Salary_data_Train, select = -Competitors)
+Salary_data_Train <- subset(Salary_data_Train, select = -c(Competitors, company_txt))
+
 
 ```
+
+For the same reason, 'seniority_by_title' and 'Degree' are also removed.
 
 ```{r}
 table(Salary_data_Train$Job.Location)
@@ -544,15 +604,14 @@ table(Salary_data_Train$seniority_by_title)
 table(Salary_data_Train$Degree)
 ```
 
-seniority_by_title y Degree la mayoría es Na, fuera
-
 ```{r}
 Salary_data_Train <- subset(Salary_data_Train, select = -c(seniority_by_title,Degree))
 
 ```
 
+### Binary variables
 
-BINARIAS
+This dataset, apart from many categorical variables, has also many binary ones. Most of them refer to skills required or not for the job offer, and others represent if salary was reported in hourly rate or if salary was provided by the employer. Let's observe how they look to detect some umbalanced classes or not.
 
 ```{r}
 table(Salary_data_Train$Hourly) # 1: If salary was reported in hourly rate. 0: Otherwise
@@ -580,24 +639,27 @@ table(Salary_data_Train$google_an) #1: If Google analytics certificate is requir
 
 ```
 
+Most of them are kind of imabalanced, but they may be helpful for the matter of hand, so , as there is no null values, we would keep all of them.
 
-hay algunas con mucho desbalanceo pero no hay null, asi que las usaremos
+### Numeric variables
 
-NUMERICAS
+This dataset has few numeric variables, naming, 'Avg.Salary.K' (the objective one), 'Founded' (year of foundation of the company offering the job), 'Age' (of the company) and 'Rating' (of the company). These last two are redundant, as one can be obtained from the other one, so we only would keep the age.
 
-solo tenemos rating, Founded (año de fundación de la empresa), Age, Avg.Salary.K (objetivo)
+```{r}
+Salary_data_Train <- subset(Salary_data_Train, select = -Founded)
 
-primero hacemos table para ver valores nulos (-1)
+```
+
+We first observe how many null values (-1) there are. As is not significant, we keep all.
+
 ```{r}
 table(Salary_data_Train$Rating) # It gives the rating of the company
-table(Salary_data_Train$Founded)# 
 table(Salary_data_Train$Age) # Age of the company (in yrs)
 table(Salary_data_Train$Avg.Salary.K.)
 
 ```
 
-no hay muchos, lo dejamos asi
-
+Next, we evaluate some metrics to better understand all of them.
 
 ```{r}
 summary(Salary_data_Train$Rating) # It gives the rating of the company
@@ -605,59 +667,99 @@ summary(Salary_data_Train$Founded)# aunque es numerica no interesa la media al s
 summary(Salary_data_Train$Age) # Age of the company (in yrs)
 summary(Salary_data_Train$Avg.Salary.K.)
 ```
-FINAL DATA
+
+### Final dataset
+
+With all of the preprocessing, the training data finally looks like this.
 
 ```{r}
 Salary_data_Train
 ```
 
+```{r}
+# Identify columns with categories having only one repeated value
+# Initialize a data frame to store results
+results <- data.frame(column = character(), category = character(), count = numeric(), stringsAsFactors = FALSE)
+
+# Loop through each column
+for (col in names(Salary_data_Train)) {
+  unique_values <- table(Salary_data_Train[[col]])
+
+  # Loop through each unique value
+  for (value in names(unique_values)) {
+    count <- unique_values[value]
+    
+    # Check if the count is 1
+    if (count == 1) {
+      # Add information to the results data frame
+      results <- rbind(results, data.frame(column = col, category = value, count = count, stringsAsFactors = FALSE))
+    }
+  }
+}
+
+# Print or use the result as needed
+print(results)
+```
+
+
+
+
 ## Explanatory Analysis
 
-algunos plots, ver correlaciones y distribucion de la variable objetivo
+During this explanatory analysis, we would better focus on analyzing the distribution of our objective variable and the possible relationships of the other with it. As previously explained, our objective variable is numeric representing the mean salary per year on thousands of dollars. It is important to know the distribution before developing a GLM, so the model can choose the appropriate link function. Therefore, we would try to fit three different distributions and we would choose the best approach.
 
 ```{r}
+lambda <- mean(Salary_data_Train$Avg.Salary.K.)
+mean_val <- mean(Salary_data_Train$Avg.Salary.K.)
+sd_val <- sd(Salary_data_Train$Avg.Salary.K.)
 
-# hacemos la transformacion de la raiz porque es rigth skewed y se centra mas
-ggplot(Salary_data_Train, aes(Avg.Salary.K.)) + geom_density(fill="lightblue") + xlab("Avg Salary") + ggtitle("Avg Salary distribution")
+rate  = mean_val/var(Salary_data_Train$Avg.Salary.K.)
+shape = rate * mean_val
 
+xgrid = seq(0,250,0.1)
 
-ggplot(Salary_data_Train, aes(sqrt(Avg.Salary.K.))) + geom_density(fill="lightblue") + xlab("sqrt(Avg Salary)") + ggtitle("Avg Salary distribution")
+ggplot(Salary_data_Train, aes(Avg.Salary.K.)) +
+  geom_density(fill = "lightblue") +
+  geom_line(data = data.frame(x = 0:250, y = dpois(0:250, lambda = lambda)), aes(x = x, y = y), color = "red", size = 1) + 
+  geom_line(data = data.frame(x = xgrid, y = dnorm(xgrid, mean = mean_val, sd = sd_val)),
+            aes(x = x, y = y), color = "blue", size = 1) +
+  geom_line(data = data.frame(x = xgrid, y = dgamma(xgrid, shape = shape, rate = rate)),
+            aes(x = x, y = y), color = "green", size = 1) +
+  ggtitle("Avg Salary distribution")
+
 ```
+As can be observed, the Gamma distribution is hte one that better fits our dataset, therefore, we would develop the GLM using it.
 
-
+Futhermore, we can plot the objective variable in terms of other ones to find relations. For example, here we observe how the salary distribution differs a lot from one type of offer from another.
 ```{r}
-ggplot(Salary_data_Train, aes(sqrt(Avg.Salary.K.))) + geom_density(aes(group=job_title_sim, colour=job_title_sim, fill=job_title_sim), alpha=0.1) + ggtitle("Salary distribution by job title")
+ggplot(Salary_data_Train, aes(Avg.Salary.K.)) + geom_density(aes(group=job_title_sim, colour=job_title_sim, fill=job_title_sim), alpha=0.1) + ggtitle("Salary distribution by job title")
 ```
+If we perform the boxplot of the previous relationship, we better visualize how the offers for the 'machine learning engineer' position are the ones with biggest mean salary, or how the 'data scientist' offers are the ones with more variance of salaries.
 
 ```{r}
-ggplot(Salary_data_Train, aes(x = job_title_sim, y = sqrt(Avg.Salary.K.))) +
+ggplot(Salary_data_Train, aes(x = job_title_sim, y = Avg.Salary.K.)) +
   geom_boxplot() +
   labs(title = "Boxplot between Avg Salary and Job Title",
        x = "Job title",
-       y = "sqrt(Avg.Salary.K.)")+
+       y = "Avg.Salary.K.")+
   theme(axis.text.x = element_text(angle = 45, hjust = 1))
 ```
-
+Finally, we try to find some trend related with the rating of the companies and the mean salary, however, the scatter plot does not show any useful information.
 ```{r}
-ggplot(Salary_data_Train, aes(x = sqrt(Avg.Salary.K.), y = Rating)) +
+ggplot(Salary_data_Train, aes(x = Avg.Salary.K., y = Rating)) +
   geom_point() +
-  labs(title = "Scatter Plot entre sqrt(Avg.Salary.K.) y Rating",
-       x = "sqrt(Avg.Salary.K.)",
+  labs(title = "Scatter Plot entre Avg.Salary.K. y Rating",
+       x = "Avg.Salary.K.",
        y = "Rating")
 ```
 
-```{r}
-ggplot(Salary_data_Train, aes(x = sqrt(Avg.Salary.K.), y = Age)) +
-  geom_point() +
-  labs(title = "Scatter Plot entre sqrt(Avg.Salary.K.) y Age",
-       x = "sqrt(Avg.Salary.K.)",
-       y = "Age")
-```
 ### Correlations
+
+Before starting modeling the predictor, we try to find the numeric (and binary) variables more correlated with the objective feature.
 
 ```{r}
 # Calcular correlaciones
-correlations <- cor(Salary_data_Train[, c("Rating", "Founded", "Hourly", "Avg.Salary.K.", "Employer.provided", "Python", "spark", "aws", "excel", "sql", "sas", "keras", "pytorch", "scikit", "tensor", "hadoop", "tableau", "bi", "flink", "mongo", "google_an")])
+correlations <- cor(Salary_data_Train[, c("Age", "Rating", "Hourly", "Avg.Salary.K.", "Employer.provided", "Python", "spark", "aws", "excel", "sql", "sas", "keras", "pytorch", "scikit", "tensor", "hadoop", "tableau", "bi", "flink", "mongo", "google_an")])
 
 # Extraer las correlaciones con la variable objetivo "Avg.Salary.K."
 corr <- sort(correlations["Avg.Salary.K.",], decreasing = F)
@@ -669,60 +771,133 @@ corr_df <- data.frame(variable = names(corr), correlation = corr)
 ggplot(corr_df, aes(x = variable, y = correlation)) +
   geom_bar(stat = "identity", fill = "lightblue") +
   labs(x = "", y = "Correlation", title = "Correlations with Avg.Salary.K.") +
-  theme(plot.title = element_text(hjust = 0.5, size = rel(1.5)),
-        axis.text.x = element_text(angle = 45, hjust = 1))
+  theme(plot.title = element_text(hjust = 0.5, size = rel(1.5)), axis.text.x = element_text(angle = 45, hjust = 1))
 ```
+
+As with the previous dataset, this application would not be easy as most of the variables does not have any correlation with the objective one. However, we can highlight the values of 'aws', 'Hourly' and 'Python'.
 
 ## Model development and interpretation
-
-primero vamos a hacer un modelo simple  e interpretar los efectos individuales 
-
-```{r}
-first_glm = glm(sqrt(Avg.Salary.K.) ~ Python, family = gaussian, data = Salary_data_Train) 
-summary(first_glm)
-
-pred_f_glm= (predict(first_glm, newdata= Salary_data_Test))^2
-
-#Let's know validate the predictions, calculating R^2 in the testing set
-
-R2_simple= cor(pred_f_glm, log(Salary_data_Test$Avg.Salary.K.))^2
-R2_simple
-```
-INTERPRETAR AQUI LAS BETAS Y LA R2
-
-
-interpretation: affects package
-
-efecto variable 
-
-```{r}
-plot(effect("Python", first_glm), ci.style="band", rescale.axis=FALSE, multiline=TRUE, ylab="sqrt(Avg.Salary.K.)", rug=FALSE, main="")
-```
-
-con este plot vemos como el hecho de que pidan python implica un salario medio mayor
-
-
-MODELO FINAL
-
-```{r}
-
-```
-
-
-chequear los efectos de las cosas nuevas que metamos, de interacciones y ya luego todas de una
-
-
-```{r}
-plot(allEffects(arrests.mod), ci.style="band", rescale.axis=FALSE, multiline=TRUE, ylab="P(released)", rug=FALSE, main="")
-```
-
-
-
-## Predictive performance
 
 ### Benchmark
 
 hacer el benchmarck con la media y comparar MSE
 
+```{r}
+bench_glm = glm(Avg.Salary.K. ~ 1 , family = Gamma, data = Salary_data_Train) 
+#summary(bench_glm)
+
+pred_bench_glm= predict(bench_glm, newdata= Salary_data_Test)
+
+#Let's know validate the predictions, calculating R^2 in the testing set
+
+# Evaluate performance on the test set
+RMSE_test <- sqrt(mean((pred_bench_glm - Salary_data_Test$Avg.Salary.K.)^2))
+cat("RMSE on test set:", RMSE_test, "\n")
+```
+
+
+### Developing the model
+
+We would make a first approach, in order to  evaluate the effects of each variable into the model. Later, we would try to choose the best variables to define the final model.
+
+```{r}
+## For controlling levels errors:
+"Salary_data_Test$Headquarters <- factor(Salary_data_Test$Headquarters, levels = levels(Salary_data$Headquarters))
+
+Salary_data_Test$company_txt <- factor(Salary_data_Test$company_txt, levels = levels(Salary_data$company_txt))
+
+Salary_data_Test$Sector <- factor(Salary_data_Test$Sector, levels = levels(Salary_data$Sector))
+
+Salary_data_Test$Job.Location <- factor(Salary_data_Test$Job.Location, levels = levels(Salary_data$Job.Location))"
+
+Salary_data_Test$Revenue <- factor(Salary_data_Test$Revenue, levels = levels(Salary_data$Revenue))
+ 
+## First glm
+first_glm = glm(Avg.Salary.K. ~ job_title_sim+ Rating + Hourly + Employer.provided + Python + spark + aws + excel + sql + sas + keras + pytorch + scikit + tensor + hadoop + tableau + bi + flink + mongo + google_an + Size + Type.of.ownership + Sector + Revenue+ Job.Location + Age, family = Gamma, data = Salary_data_Train) 
+#summary(first_glm)
+
+pred_f_glm= predict(first_glm, newdata= Salary_data_Test)
+
+#Let's know validate the predictions, calculating R^2 in the testing set
+
+# Evaluate performance on the test set
+R2_test <- cor(pred_f_glm, Salary_data_Test$Avg.Salary.K.)^2
+RMSE_test <- sqrt(mean((pred_f_glm - Salary_data_Test$Avg.Salary.K.)^2))
+
+cat("R-squared on test set:", R2_test, "\n")
+cat("RMSE on test set:", RMSE_test, "\n")
+```
+
+```{r}
+library(effects)
+variables = list("job_title_sim", "Rating", "Hourly", "Employer.provided" ,"Python" ,"spark", "aws" ,"excel", "sql" , "sas" , "keras" , "pytorch" , "scikit" ,"tensor" ,"hadoop" , "tableau" , "bi" , "flink" , "mongo" , "google_an", "Size", "Type.of.ownership",  "Sector",  "Revenue",  "Job.Location" , "Age")
+
+plot(effect(variables[[1]], first_glm), ci.style="band", rescale.axis=FALSE, multiline=TRUE, ylab="Avg.Salary.K.", rug=FALSE, main="") 
+plot(effect(variables[[3]], first_glm), ci.style="band", rescale.axis=FALSE, multiline=TRUE, ylab="Avg.Salary.K.", rug=FALSE, main="") 
+plot(effect(variables[[5]], first_glm), ci.style="band", rescale.axis=FALSE, multiline=TRUE, ylab="Avg.Salary.K.", rug=FALSE, main="") 
+plot(effect(variables[[9]], first_glm), ci.style="band", rescale.axis=FALSE, multiline=TRUE, ylab="Avg.Salary.K.", rug=FALSE, main="") 
+plot(effect(variables[[21]], first_glm), ci.style="band", rescale.axis=FALSE, multiline=TRUE, ylab="Avg.Salary.K.", rug=FALSE, main="") 
+plot(effect(variables[[22]], first_glm), ci.style="band", rescale.axis=FALSE, multiline=TRUE, ylab="Avg.Salary.K.", rug=FALSE, main="") 
+plot(effect(variables[[23]], first_glm), ci.style="band", rescale.axis=FALSE, multiline=TRUE, ylab="Avg.Salary.K.", rug=FALSE, main="") 
+plot(effect(variables[[24]], first_glm), ci.style="band", rescale.axis=FALSE, multiline=TRUE, ylab="Avg.Salary.K.", rug=FALSE, main="") 
+plot(effect(variables[[25]], first_glm), ci.style="band", rescale.axis=FALSE, multiline=TRUE, ylab="Avg.Salary.K.", rug=FALSE, main="") 
+
+```
+
+
+As we can observe, after analyzing the individual effects of the variables on the model, we can get better inshigths. For example, variables as 'job_title_sim', 'Hourly', 'Python' or 'Revenue' gives many of the information to the model, as there is a clear difference between the values and the objective function and the intervals are well defined. However, other such as 'sql' or 'Job.Location' are not useful for the model, because there is a lot of uncertainty on the intervals and the mean salary value remains constant for all the x axis.
+
+We develop another model with the most informative variables (still without interactions). This model has lower $R^2$ value, so we will try on our final model add the necessary interactions to increase it by using only the necessary variables.
+
+```{r}
+## First glm
+other_glm = glm(Avg.Salary.K. ~ job_title_sim + Hourly + Employer.provided   + google_an + Size + Type.of.ownership + Sector + Python + Revenue + sas, family = Gamma, data = Salary_data_Train) 
+#summary(first_glm)
+
+pred_other_glm= predict(other_glm, newdata= Salary_data_Test)
+
+#Let's know validate the predictions, calculating R^2 in the testing set
+
+# Evaluate performance on the test set
+R2_test <- cor(pred_other_glm, Salary_data_Test$Avg.Salary.K.)^2
+RMSE_test <- sqrt(mean((pred_other_glm - Salary_data_Test$Avg.Salary.K.)^2))
+
+cat("R-squared on test set:", R2_test, "\n")
+cat("RMSE on test set:", RMSE_test, "\n")
+```
+
+### Final model
+
+After trying several combinations, we have reached to an $R^2 = 0.31$, almost equal to the $R^2 = 0.34$ of the more complex model, but only using the most informative variables and the interactions between them. Let's analyse the effects of them in the final model.
+```{r}
+## First glm
+Salary_data_Train$Sector <- as.factor(Salary_data_Train$Sector)
+Salary_data_Train$Python <- as.numeric(Salary_data_Train$Python)
+Salary_data_Train$job_title_sim <- as.factor(Salary_data_Train$job_title_sim)
+Salary_data_Train$Revenue <- as.factor(Salary_data_Train$Revenue)
+Salary_data_Train$sas <- as.numeric(Salary_data_Train$sas)
+
+
+final_glm = glm(Avg.Salary.K. ~ job_title_sim*Python  + Sector + Revenue*sas , family = Gamma, data = Salary_data_Train) 
+#summary(first_glm)
+
+pred_final_glm= predict(final_glm, newdata= Salary_data_Test)
+
+#Let's know validate the predictions, calculating R^2 in the testing set
+
+# Evaluate performance on the test set
+R2_test <- cor(pred_final_glm, Salary_data_Test$Avg.Salary.K.)^2
+RMSE_test <- sqrt(mean((pred_final_glm - Salary_data_Test$Avg.Salary.K.)^2))
+
+cat("R-squared on test set:", R2_test, "\n")
+cat("RMSE on test set:", RMSE_test, "\n")
+```
+
+```{r}
+plot(effect("job_title_sim", final_glm), ci.style="band", rescale.axis=FALSE, multiline=TRUE, ylab="Avg.Salary.K.", rug=FALSE, main="") 
+```
+
+
+## Predictive performance
 
 ### Prediction Intervals
