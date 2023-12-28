@@ -1,9 +1,9 @@
 ---
 title: "Project 1 Predictive Modeling"
 output:
-  pdf_document: default
   html_document:
     df_print: paged
+  pdf_document: default
 ---
 
 # Introduction
@@ -14,9 +14,20 @@ During this project, we will analyse two data sets in order to obtain more insig
 
 -   Data scientist jobs: <https://www.kaggle.com/datasets/nikhilbhathi/data-scientist-salary-us-glassdoor>
 
-# Linear Regression
+```{r}
+#Adding the necessary libraries
+library(tidyverse)
+library(MASS)
+library(caret) 
+library(e1071)
+library(ggplot2)
+library(effects)
+library(sjPlot)
+```
 
-## Data preparation
+# A. Linear Regression
+
+## 1. Data preparation
 
 For the first part of the assignment we will be using the Airbnb data set. It consist of information about the Airbnb stays in some European cities. The variables are the following:
 
@@ -40,25 +51,18 @@ For the first part of the assignment we will be using the Airbnb data set. It co
 -   Restraunt Index: continuous variable measuring the restaurant performance index
 -   Normalised Restraunt Index: same but normalised
 
-The goal would be to predict the Price variable in terms of the others. First, it is always a good idea to separate from the beginning the training set (what the tool is going to see) from the testing set (used only to validate predictions)
+### 1.1. Objective variable and split
+
+The goal would be to predict the Price variable in terms of the others. First, it is always a good idea to split from the beginning the training set (what the tool is going to see) from the testing set (used only to validate predictions).
 
 ```{r}
-library(tidyverse)
-library(MASS)
-library(caret) #ML tools
-library(e1071)
-library(ggplot2)
-```
-
-```{r}
- 
 par(mar = c(2, 2, 2, 2))
 # Loading and preparing data
 Airbnb <- read.csv("Airbnb_data.csv")
-Airbnb
 ```
 
 ```{r}
+#we set seed for reproducibility
 set.seed(123)
 
 # split between training and testing sets
@@ -71,13 +75,17 @@ str(AirbnbTrain)
 
 ```
 
+### 1.2. Null values
+
 Once separated, let's clean and understand the training set. First, we check any missing values. There is any missing value.
 
 ```{r}
 any(is.na(AirbnbTrain))
 ```
 
-Now we evaluate the numerical variables, having some statistics such as minnimum, maximum, quantiles mean and median.
+### 1.3. Numerical variables
+
+On the following steps we would be analyzing more deeply each variable by it's type. We would start with the numerical variables, showing some statistics such as minnimum, maximum, quantiles mean and median.
 
 ```{r}
 summary(AirbnbTrain)
@@ -86,9 +94,7 @@ summary(AirbnbTrain)
 
 From the data obtained we can obtain the following insigths.
 
-##### Price
-
-The maximum of price seems to be too large for the mean and median. We can get a better look with a boxplot:
+-   **Price** : The maximum of price seems to be too large for the mean and median. We can get a better look with a boxplot.
 
 ```{r}
 boxplot(AirbnbTrain$Price)
@@ -96,16 +102,18 @@ boxplot(AirbnbTrain$Price)
 
 Although the maximum is an outlier, it is not alone, as we can observe many other outliers that could be representing expensive Airbnb. In the case the maximum would be alone, we could get rid of it, but in this case this can be meaningful data.
 
-##### Attraction.Index and Restraunt.Index
-
-As we have the normalize columns, we have redundant information, so we will only keep those.
+-   **Attraction.Index and Restraunt.Index**: as we have the normalize columns, we have redundant information, so we will only keep those.
 
 ```{r}
 AirbnbTrain <- subset(AirbnbTrain, select = -c(Attraction.Index, Restraunt.Index ))
 
 ```
 
-The rest of numerical variables seem fine with their ranges, so no changes are needed. Let's now evaluate the categorical variables:
+The rest of numerical variables seem fine with their ranges, so no changes are needed.
+
+### 1.4. Categorical variables
+
+Let's now evaluate the categorical variables.
 
 ```{r}
 table(AirbnbTrain$City)
@@ -119,21 +127,23 @@ table(AirbnbTrain$Business)
 
 ```
 
-The variable Room type has the same information than Private Room and Shared room, so we will erase the last two.
+The variable 'Room type' has the same information than 'Private Room' and 'Shared room', so we will erase the last two.
 
 ```{r}
 AirbnbTrain <- subset(AirbnbTrain, select = -c(Private.Room, Shared.Room ))
 
 ```
 
-Finally, the variable Superhost is as False/True, we will code as binary the False/True options.
+Finally, the variable 'Superhost' is as False/True, we will code as binary the False/True options.
 
 ```{r}
 AirbnbTrain$Superhost<-as.numeric(as.logical(AirbnbTrain$Superhost))
 
 ```
 
-## Explanatory analysis
+## 2. Explanatory  Data Analysis
+
+### 2.1. Objective variable distribution
 
 In order to better comprehend our data, we need to plot it. Concretely, we will have in mind plots respect to the objective variable, the price, for trying to visualize a model for predicting it.
 
@@ -152,7 +162,9 @@ exp(mean(log(AirbnbTrain$Price)))
 
 As can be observed, Price is positive asymmetric, as most of the data is located at the left of the distribution. In order to make the data more symmetric, we need to take the logarithm. The log(Price) seems to follow a Gaussian distribution with mean 5.36 (214.2107 €). This is beneficial in terms of future prediction of the target, as it is symmetrical there are no much extreme values and the regression would make better predictions. However, still after the transformation the data are not fully centered, but are slightly shifted to the left.
 
-After observing the response variable individually, we can approximate some regressions with plots. We now have in mind the Prices in terms of the city, in order to better understand the data.
+### 2.2. Relations between objective and rest of variables
+
+After observing the response variable individually, we can approximate some regressions with plots. We now have in mind the prices in terms of the city, in order to better understand the data.
 
 ```{r}
 ggplot(AirbnbTrain, aes(log(Price))) + geom_density(aes(group=City, colour=City, fill=City), alpha=0.1) + ggtitle("Price distribution")
@@ -195,7 +207,7 @@ ggplot(AirbnbTrain, aes(x=Normalised.Restraunt.Index, y=log(Price), color=City))
 
 Finally, the indexes did not provide as much information. But, focusing on the Restaurant index we could visualize a kind of linear tendency with lower prices on the ones with lower index and higher prices close to higher index rating. However, is still difficult to make assumptions without an apropiatte model. In the following sections this relationship would be better explained.
 
-### Correlations
+### 2.3. Correlations
 
 The most important term when evaluating a data set for predictions are the correlations. Which are the variables that are more correlated with our objective variable? First, we would focus on isolated correlations.
 
@@ -221,7 +233,9 @@ ggplot(corr,aes(x = row.names(corr), y = corr_delay)) +
 
 A priori, the only variables helpful for performing a linear regression predictor are 'Normalised Atraction Index', 'Normalised Restraunt Index', 'number of Bedrooms' and 'Person Capacity'. However, is important to recall that we are plotting the individual correlations, maybe if we add information between variables we could get higher correlations, and therefore have better predictions.
 
-### Simple linear regression: interpreting the betas
+## 3. Model development
+
+### 3.1. Simple linear regression: interpreting the betas
 
 Before developing a complex model for prediction, we will try to create a simpler one where we avoid colinearities and better understand the betas. Therefore, we first create a simple linear regresor with the higher correlation variable: 'Normalised Atraction Index'.
 
@@ -278,11 +292,9 @@ par(mar = c(2, 2, 2, 2))
 plot(simple_linFit, pch=23 ,bg='orange',cex=2)
 ```
 
-## Predictive analysis
+### 3.2. Benchmark
 
 After understanding better how our data is constructed and being defined a simple regression model, we will know try to develop the best model for prediction. But first, we need to define the benchmark, from where we have to improve.
-
-### Benchmark
 
 In our case, as we are dealing with numerical continuous target, we would consider the benchmark as predicting the mean (again using the logarithmic transformation). This would be similar to the following model: $log(price)= \beta_0 \times 1$
 
@@ -303,7 +315,7 @@ RMSE_bench
 
 Clearly, our simple model is worse than the naive model, so we need to improve it.
 
-### Complex model (without interactions)
+### 3.3. Complex model (without interactions)
 
 As a first approach to find our perfect model, we would fit a model with all the variables we have. To do it, we first must change the format of the variable 'Superhost' on the test set for non finding programatic errors when calculating the predictions.
 
@@ -332,7 +344,7 @@ However, when comparing with the RMSE, we can see how the simple model has the w
 
 In order to try to improve this metrics, now we need to take into account interactions between variables.
 
-### Complex model (with interactions)
+### 3.4. Complex model (with interactions)
 
 We first start by doing some feature selection, as does not have any sense to add all the features because we will be adding more noise. Therefore, we would try to find the best combination of the most correlated variables: 'Normalised.Attraction.Index', 'Normalised.Restraunt.Index', 'Bedrooms' and 'Person.Capacity'. In order to do it, we will focus on both the $R^2$ and the MSE, trying to find the model that best maximizes the first one while minimasing the second one.
 
@@ -411,9 +423,9 @@ For better conclusions we can perform some diagnosis. Contrary to the simple mod
 plot(best_linFit, pch=23 ,bg='orange',cex=2)
 ```
 
-### Prediction Intervals
+### 3.5. Predictive performance and prediction Intervals
 
-Finally, we would evaluate the predictions of our model with the prediction intervals.
+Finally, we would evaluate the predictions of our final model with the prediction intervals.
 
 ```{r}
 pred_best <- predict(best_linFit, newdata = AirbnbTest, interval='prediction')
@@ -460,15 +472,17 @@ print(paste("Percentage of points inside the intervals:", coverage, "%"))
 
 Finally, our model is covering 95.5 % of the points inside the prediction intervals. That is, although before we determined that our predictions were not that accurate due to bad results on RMSE, we can say that our model is useful, as we are capturing well the noise. In general, is more important to focus the performance of a model on the intervals that on exact predictions, as usually we are interested on knowing a close value of the price, but not interested on the exact one.
 
-# Generalised Linear Models
+# B. Generalised Linear Models
 
-## Data preparation
+## 1. Data preparation
 
-Continuing with the second dataset, we will focus on predicting the average salary offered on several job postings related to the position of Data Scientist. To do it, we will try to use a Generalised Linear Model, but first, we need to clean our dataset.
+Continuing with the second dataset, we will focus on predicting the average salary offered on several job postings related to the position of Data Scientist, by fitting a Generalised Linear Model.
 
 ```{r}
 Salary_data <- read.csv("Data_Analyst_Jobs.csv")
 ```
+
+### 1.1. Objective variable and split
 
 First, we split on training and test, and evaluate the type of the variables.
 
@@ -497,26 +511,29 @@ Salary_data_Train <- subset(Salary_data_Train, select = -c(Job.Description, Job.
 
 ```
 
-### Null values and categorical variables
+### 1.2. Categorical variables
 
-With the remaining features, we need to evaluate the null values. Although it can seem there is none, is because they are set as 'na' or '-1'. Columns with value -1 means either the data scraping was unsuccessful for that or the data was not present. Therefore, we would evaluate the classes of the features to observe if the null values comprehend a significant quantity.
+With the remaining features, we need to evaluate the null values per each type, starting with the categorical. Although it can seem there is none, is because they are set as 'na' or '-1'. Columns with value -1 means either the data scraping was unsuccessful for that or the data was not present. Therefore, we would evaluate the classes of the features to observe if the null values comprehend a significant quantity.
 
 ```{r}
 any(is.na(Salary_data_Train))
 ```
 
-We can observe some null values on these first set of features, but not as much to be considered significant. However, we observe the variable 'Headquarters' has too many unique categories, which would not be helpful for developing the model, therefore we decided to remove it.
-
 ```{r}
-#We comment the vairables where there are many categories to avoid a long notebook
+#We comment the variables where there are many categories to avoid a long notebook
+
 #table(Salary_data_Train$Headquarters)
 table(Salary_data_Train$Size)
-table(Salary_data_Train$Type.of.ownership)
+#table(Salary_data_Train$Type.of.ownership)
 #table(Salary_data_Train$Industry )
 table(Salary_data_Train$Sector )
 
-Salary_data_Train <- subset(Salary_data_Train, select = -Headquarters)
+```
 
+We can observe some null values on these first set of features, but not as much to be considered significant. However, we observe the variable 'Headquarters' has too many unique categories, which would not be helpful for developing the model, therefore we decided to remove it.
+
+```{r}
+Salary_data_Train <- subset(Salary_data_Train, select = -Headquarters)
 ```
 
 The following variables 'Industry' and 'Sector' represents the same term, so we would only keep the one with less unique values.
@@ -534,14 +551,13 @@ Salary_data_Train <- subset(Salary_data_Train, select = -Industry)
 
 ```
 
-Finishing with the null, 'Competitors' would be erased due to having 372 null rows of 595. 'Revenue' has 156 of 595, is almost 30% of the rows, however, we will try to keep them, as the remaining ones could have significant information. 'company_txt' would also be removed due to having too many unique values.
-
 ```{r}
 table(Salary_data_Train$Revenue)
 #table(Salary_data_Train$Competitors)
 #table(Salary_data_Train$company_txt )
-
 ```
+
+Next, 'Competitors' would be erased due to having 372 null rows of 595. 'Revenue' has 156 of 595, is almost 30% of the rows, however, we will try to keep them, as the remaining ones could have significant information. 'company_txt' would also be removed due to having too many unique values.
 
 ```{r}
 Salary_data_Train <- subset(Salary_data_Train, select = -c(Competitors, company_txt))
@@ -549,21 +565,21 @@ Salary_data_Train <- subset(Salary_data_Train, select = -c(Competitors, company_
 
 ```
 
-For the same reason, 'seniority_by_title' and 'Degree' are also removed.
-
 ```{r}
-table(Salary_data_Train$Job.Location)
-table(Salary_data_Train$job_title_sim)
+#table(Salary_data_Train$Job.Location)
+#table(Salary_data_Train$job_title_sim)
 table(Salary_data_Train$seniority_by_title)
 table(Salary_data_Train$Degree)
 ```
+
+For the same reason, 'seniority_by_title' and 'Degree' are also removed.
 
 ```{r}
 Salary_data_Train <- subset(Salary_data_Train, select = -c(seniority_by_title,Degree))
 
 ```
 
-### Binary variables
+### 1.3. Binary variables
 
 This dataset, apart from many categorical variables, has also many binary ones. Most of them refer to skills required or not for the job offer, and others represent if salary was reported in hourly rate or if salary was provided by the employer. Let's observe how they look to detect some unbalanced classes or not.
 
@@ -575,27 +591,27 @@ table(Salary_data_Train$Employer.provided) # 1: If the salary was provided by th
 
 table(Salary_data_Train$Python)
 table(Salary_data_Train$spark)
-table(Salary_data_Train$aws)
-table(Salary_data_Train$excel)
-table(Salary_data_Train$sql)
-table(Salary_data_Train$sas)
-table(Salary_data_Train$keras)
-table(Salary_data_Train$pytorch)
-table(Salary_data_Train$scikit)
-table(Salary_data_Train$tensor)
-table(Salary_data_Train$hadoop)
-table(Salary_data_Train$tableau)
-table(Salary_data_Train$bi)
-table(Salary_data_Train$flink)
-table(Salary_data_Train$mongo)
-table(Salary_data_Train$google_an) #1: If Google analytics certificate is required 0: Otherwise
+#table(Salary_data_Train$aws)
+#table(Salary_data_Train$excel)
+#table(Salary_data_Train$sql)
+#table(Salary_data_Train$sas)
+#table(Salary_data_Train$keras)
+#table(Salary_data_Train$pytorch)
+#table(Salary_data_Train$scikit)
+#table(Salary_data_Train$tensor)
+#table(Salary_data_Train$hadoop)
+#table(Salary_data_Train$tableau)
+#table(Salary_data_Train$bi)
+#table(Salary_data_Train$flink)
+#table(Salary_data_Train$mongo)
+#table(Salary_data_Train$google_an) #1: If Google analytics certificate is required 0: Otherwise
 
 
 ```
 
 Most of them are kind of unbalanced, but they may be helpful for the matter of hand. So, as there is no null values, we would keep all of them.
 
-### Numeric variables
+### 1.4. Numeric variables
 
 This dataset has few numeric variables, naming, 'Avg.Salary.K' (the objective one), 'Founded' (year of foundation of the company offering the job), 'Age' (of the company) and 'Rating' (of the company). These last two are redundant, as one can be obtained from the other one, so we only would keep the age.
 
@@ -621,7 +637,9 @@ summary(Salary_data_Train$Age) # Age of the company (in yrs)
 summary(Salary_data_Train$Avg.Salary.K.)
 ```
 
-### Final dataset
+As observed, 'Age' and 'Rating' minimum value is -1, but this is not representative as this refers to null values. Furthermore, we can observe how our objective variable does not have any null or 0 values, which would be helpful for developing the model.
+
+### 1.5. Final dataset
 
 With all of the preprocessing, the training data finally looks like this.
 
@@ -629,7 +647,9 @@ With all of the preprocessing, the training data finally looks like this.
 Salary_data_Train
 ```
 
-## Explanatory Analysis
+## 2. Explanatory Data Analysis
+
+### 2.1. Objective variable distribution
 
 During this explanatory analysis, we would better focus on analyzing the distribution of our objective variable and the possible relationships of the other with it. As previously explained, our objective variable is numeric representing the mean salary per year on thousands of dollars. It is important to know the distribution before developing a GLM, so the model can choose the appropriate link function. Therefore, we would try to fit three different distributions and we would choose the best approach.
 
@@ -655,6 +675,8 @@ ggplot(Salary_data_Train, aes(Avg.Salary.K.)) +
 ```
 
 As can be observed, the Gamma distribution is the one that better fits our dataset, therefore, we would develop the GLM using it.
+
+### 2.2. Relations between objective and rest of variables
 
 Furthermore, we can plot the objective variable in terms of other ones to find relations. For example, here we observe how the salary distribution differs a lot from one type of job offer from another.
 
@@ -683,7 +705,7 @@ ggplot(Salary_data_Train, aes(x = Avg.Salary.K., y = Rating)) +
        y = "Rating")
 ```
 
-### Correlations
+### 2.3. Correlations
 
 Before starting modeling the predictor, we try to find the numeric (and binary) variables more correlated with the objective feature.
 
@@ -706,9 +728,9 @@ ggplot(corr_df, aes(x = variable, y = correlation)) +
 
 As with the previous dataset, this application would not be easy as most of the variables does not have any correlation with the objective one. However, we can highlight the values of 'scikit', 'Hourly' and 'Python'.
 
-## Model development and interpretation
+## 3. Model development 
 
-### Benchmark
+### 3.1. Benchmark
 
 Following the same criteria as with the previous application, in order to develop our model, we must first set the benchmark from where we would try to improve the prediction RMSE, or at least, get as close as possible.
 
@@ -725,7 +747,7 @@ RMSE_test <- sqrt(mean((pred_bench_glm - Salary_data_Test$Avg.Salary.K.)^2))
 cat("RMSE on test set:", RMSE_test, "\n")
 ```
 
-### Developing the model
+### 3.2. Developing the model
 
 We would make a first approach, in order to evaluate the marginal effects of each variable into the model. Later, we would try to choose the best variables to define the final model. As we can observed, with this complex model we have reached $R^2= 0.39$ and $RMSE= 110.95$, so, by using all the variables, we have many information but also more noise, so RMSE is similar to benchmark.
 
@@ -747,7 +769,6 @@ cat("RMSE on test set:", RMSE_test, "\n")
 ```
 
 ```{r}
-library(effects)
 variables = list("job_title_sim", "Rating", "Hourly", "Employer.provided" ,"Python" ,"spark", "aws" ,"excel", "sql" , "sas" , "keras" , "pytorch" , "scikit" ,"tensor" ,"hadoop" , "tableau" , "bi" , "flink" , "mongo" , "google_an", "Size", "Type.of.ownership",  "Sector",  "Revenue",  "Job.Location" , "Age")
 
 #job_title_sim
@@ -801,7 +822,7 @@ cat("R-squared on test set:", R2_test, "\n")
 cat("RMSE on test set:", RMSE_test, "\n")
 ```
 
-### Final model
+### 3.3. Final model
 
 After trying several combinations, we have reached to an $R^2 = 0.31$, close to the $R^2 = 0.39$ of the more complex model, but only using the most informative variables and the interactions between them. Let's analyse the effects of them in the final model.
 
@@ -822,12 +843,11 @@ cat("R-squared on test set:", R2_test, "\n")
 cat("RMSE on test set:", RMSE_test, "\n")
 ```
 
-#### Effects
+#### 3.3.1. Effects
 
 By using another library that supports the interactions of the model, we can observe the effects of each element on the GLM. Starting with the marginal component, 'Sector' is useful mainly for one category. Later, the interactions between 'Python' and 'job_title_sim' are much informative, having in mind the scale of the y axis. Also, 'Revenue' and 'sas' gives the objective variable much of the variance. All in all, this is a simpler model that from we started (then, it would not tend to overfit), but having most of the information of the application.
 
 ```{r}
-library(sjPlot)
 #type pred: Predicted values (marginal effects) for specific model terms
 #type int: Marginal effects of interaction terms in model
 plot_model(final_glm, type = "pred", terms='Sector')+
@@ -838,9 +858,9 @@ plot_model(final_glm, type = "int")[[2]]+
   theme(axis.text.x = element_text(angle = 45, hjust = 1))
 ```
 
-#### Predictive performance: Prediction Intervals
+#### 3.3.2. Predictive performance and prediction intervals
 
-We have already evaluate the $R^2$ and $RMSE$ values, let's know plot the prediction intervals of the final model over the test set. We would follow two different approaches:
+We have already evaluated the $R^2$ and $RMSE$ values, let's know plot the prediction intervals of the final model over the test set. We would follow two different approaches:
 
 -   Firstly, we would directly use the standard errors provided by the predict function for the gamma GLM model.
 -   Secondly, we would calculate the prediction intervals by transforming the bounds on the linear scale using the inverse link function of the gamma distribution.
