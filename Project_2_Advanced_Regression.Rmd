@@ -3,20 +3,895 @@ title: "R Notebook"
 output: html_notebook
 ---
 
-This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute code within the notebook, the results appear beneath the code. 
+# 1. Introduction
 
-Try executing this chunk by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing *Ctrl+Shift+Enter*. 
+Throughout this project, we plan to employ a range of statistical tools and machine learning models to analyze our dataset. The objective is to identify and select the most effective solution for addressing our specific problem. By utilizing a combination of statistical methodologies and advanced machine learning techniques, we aim to gain valuable insights and make informed decisions regarding the dataset's characteristics.
+
+```{r}
+library(caret) 
+library(dplyr)
+library(ggplot2)
+library(gridExtra)
+library(pdp)
+```
+
+# 2. Data preprocessing
+
+The dataset utilized for the project objective is sourced from the Global Health Observatory (GHO) data repository maintained by the World Health Organization (WHO). Specifically, this dataset focuses on life expectancy and includes health-related factors for 193 countries, obtained from the WHO data repository. Corresponding economic data was gathered from the United Nations website.
+
+From the broad spectrum of health-related factors, only critical variables from the years 2000 to 2015 were selected to create a more representative dataset. The resulting dataset comprises 22 columns and 2938 rows, featuring 20 predictive variables, namely: Country, Year, Status, Life Expectancy, Adult Mortality, Infant Deaths, Alcohol, Percentage Expenditure, Hepatitis B, Measles, BMI, Under-Five Deaths, Polio, Total Expenditure, Diphtheria, HIV/AIDS, GDP, Population, Thinness 1-19 years, Thinness 5-9 years, Income Composition of Resources, and Schooling.
+
+The dataset has been selected from kaggle: <https://www.kaggle.com/datasets/kumarajarshi/life-expectancy-who>
 
 ```{r}
 
-data <- read.csv("healthcare_dataset.csv")
+data <- read.csv("Life Expectancy Data.csv")
+
+#we set seed for reproducibility
+set.seed(123)
+
+# split between training and testing sets
+spl = createDataPartition(data$Year, p = 0.8, list = FALSE)  # 80% for training
+
+Train = data[spl,]
+Test = data[-spl,]
+
+
+str(Train)
+```
+
+As we can observe, most of the variables are numerical or integer, having only two categorical variables. On the following sections we will deeply understand these variables, the missing values, ranges of values and number of categories.
+
+## 2.1. Missing values
+
+As an initial step, we examine the potential null values within the dataset. Many features exhibit some null values, and for some, the quantity is notably high. Consequently, we have chosen to tackle this issue by removing rows for features with fewer than a hundred nulls. However, for the remaining features, we will address the null values by replacing them with the mean of each respective variable.
+
+```{r}
+sum(is.na(Train$Country))
+sum(is.na(Train$Year))
+sum(is.na(Train$Status))
+sum(is.na(Train$Life.expectancy))
+sum(is.na(Train$Adult.Mortality))
+sum(is.na(Train$infant.deaths))
+sum(is.na(Train$percentage.expenditure))
+sum(is.na(Train$Measles))
+sum(is.na(Train$BMI))
+sum(is.na(Train$under.five.deaths))
+sum(is.na(Train$Polio))
+sum(is.na(Train$Diphtheria))
+sum(is.na(Train$HIV.AIDS))
+sum(is.na(Train$thinness..1.19.years))
+sum(is.na(Train$thinness.5.9.years))
+```
+
+```{r}
+
+sum(is.na(Train$Alcohol))######
+sum(is.na(Train$Hepatitis.B))#####
+sum(is.na(Train$Total.expenditure))####
+sum(is.na(Train$GDP))####
+sum(is.na(Train$Population))#####
+sum(is.na(Train$Income.composition.of.resources))####
+sum(is.na(Train$Schooling))####
 
 
 
 ```
 
-Add a new chunk by clicking the *Insert Chunk* button on the toolbar or by pressing *Ctrl+Alt+I*.
+First step, we remove the rows of the features with small quantity of nulls.
 
-When you save the notebook, an HTML file containing the code and output will be saved alongside it (click the *Preview* button or press *Ctrl+Shift+K* to preview the HTML file).
+```{r}
+# Remove rows with missing values in specified columns
+Train <- Train[complete.cases(Train$Life.expectancy, Train$Adult.Mortality, Train$BMI, 
+                              Train$Polio, Train$Diphtheria, Train$thinness..1.19.years,
+                              Train$thinness.5.9.years), ]
 
-The preview shows you a rendered HTML copy of the contents of the editor. Consequently, unlike *Knit*, *Preview* does not run any R code chunks. Instead, the output of the chunk when it was last run in the editor is displayed.
+# Check for missing values after removal
+sum(is.na(Train$Life.expectancy))
+sum(is.na(Train$Adult.Mortality))
+sum(is.na(Train$BMI))
+sum(is.na(Train$Polio))
+sum(is.na(Train$Diphtheria))
+sum(is.na(Train$thinness..1.19.years))
+sum(is.na(Train$thinness.5.9.years))
+
+
+```
+
+Second step, we replace by the mean on the rest of the null values.
+
+```{r}
+# Replace missing values with the mean for specified columns
+Train <- Train %>%
+  mutate_all(~ifelse(is.na(.), mean(., na.rm = TRUE), .))
+
+
+
+sum(is.na(Train$Alcohol))######
+sum(is.na(Train$Hepatitis.B))#####
+sum(is.na(Train$Total.expenditure))####
+sum(is.na(Train$GDP))####
+sum(is.na(Train$Population))#####
+sum(is.na(Train$Income.composition.of.resources))####
+sum(is.na(Train$Schooling))####
+```
+
+Finally, our training dataset is free of null values.
+
+```{r}
+sum(is.na(Train))
+```
+
+Next, it is necessary to replicate the procedure for the test set to ensure the ability to make predictions later. Here, we will adopt the same approach, removing rows for the same features as performed in the training set. For the remaining null values in the test set, we will replace them with the means calculated from the training set to prevent data leakage from the test set into the predictions.
+
+```{r}
+
+sum(is.na(Test$Life.expectancy))
+sum(is.na(Test$Adult.Mortality))
+sum(is.na(Test$Alcohol))
+sum(is.na(Test$Hepatitis.B))
+sum(is.na(Test$BMI))
+sum(is.na(Test$Polio))
+sum(is.na(Test$Diphtheria))
+sum(is.na(Test$GDP))
+sum(is.na(Test$Population))
+sum(is.na(Test$thinness..1.19.years))
+sum(is.na(Test$thinness.5.9.years))
+sum(is.na(Test$Income.composition.of.resources))
+sum(is.na(Test$Schooling))
+
+```
+
+```{r}
+# Remove rows with missing values in specified columns
+Test <- Test[complete.cases(Test$Life.expectancy, Test$Adult.Mortality, Test$BMI, 
+                              Test$Polio, Test$Diphtheria, Test$thinness..1.19.years,
+                              Test$thinness.5.9.years), ]
+
+# Check for missing values after removal
+sum(is.na(Test$Life.expectancy))
+sum(is.na(Test$Adult.Mortality))
+sum(is.na(Test$BMI))
+sum(is.na(Test$Polio))
+sum(is.na(Test$Diphtheria))
+sum(is.na(Test$thinness..1.19.years))
+sum(is.na(Test$thinness.5.9.years))
+
+# Identify numerical columns in Train
+numerical_columns <- sapply(Train, is.numeric)
+
+# Calculate means for numerical columns
+train_means <- colMeans(Train[, numerical_columns], na.rm = TRUE)
+
+# Replace missing values in the Test set with the means from the Train set
+Test <- Test %>%
+  mutate(across(where(is.numeric), ~ifelse(is.na(.), train_means[match(cur_column(), names(train_means))], .)))
+
+sum(is.na(Test))
+```
+
+## 2.2. Numerical variables
+
+On this section we will evaluate the distributions of all the numerical variables for better understanding the dataset. As we can observe, some of the variables has the presence of many outliers, however, this could be explain due to the nature of them:
+
+-   **Infant Deaths and Under-Five Deaths**: these variables involve human lives, and in some regions or specific cases, there may be occurrences of unusually high infant or under-five mortality rates due to factors such as epidemics, lack of healthcare infrastructure, or socio-economic conditions.
+
+-   **Percentage Expenditure, GDP, and Population**: economic indicators like Percentage Expenditure, GDP, and Population can be influenced by extreme events such as economic crises, natural disasters, or rapid population growth. Outliers in these variables may reflect unique economic situations in specific countries or years.
+
+-   **Hepatitis B, Measles, Polio, HIV/AIDS**: these variables are related to diseases and vaccination rates. Outliers may occur due to outbreaks, vaccination campaigns, or specific health policies implemented in certain regions or time periods. Additionally, some countries may have higher prevalence rates for certain diseases.
+
+```{r}
+Train <- Train %>%   dplyr::select(Country, Status, everything())
+
+par(mfrow=c(4, 5),  mar = c(2, 2, 1, 1))  # Adjust the layout based on the number of variables
+for (col in names(Train[,c(3:22)])) {
+  boxplot(Train[, col], main=col, col="skyblue", border="black")
+}
+
+```
+
+## 2.3. Categorical variables
+
+Within the set of categorical variables, there are two distinct yet interconnected ones. "Country" encompasses numerous categories, posing the risk of overfitting the model due to its high dimensionality. In contrast, "Status" has only two categories and effectively encapsulates crucial information from the "Country" variable. It serves as a concise summary, highlighting a fundamental characteristic in this context---whether the countries are developed or developing. Consequently, opting for "Status" in the final model might prove more advantageous than utilizing "Country."
+
+```{r}
+cat("Country:", table(Train$Country) , "\n")
+cat("Status:",table(Train$Status), "\n")
+```
+
+```{r}
+# Assuming Train is a data frame with the specified columns
+# Create a list of variables
+variables <- c("Country", "Status")
+
+# Set up the plotting area
+par(mfrow = c(2, 1), mar = c(4, 4, 2, 2))  # Adjust the margins as needed
+
+# Loop through each variable and create a bar chart
+for (variable in variables) {
+  # Count occurrences of each category
+  variable_counts <- table(Train[[variable]])
+  
+  # Create a bar chart
+  barplot(variable_counts, main = variable, col = rainbow(length(variable_counts)))
+}
+
+# Reset the plotting area
+par(mfrow = c(1, 1))
+
+
+```
+
+## 2.4. Descriptive analysis
+
+Having scrutinized the majority of features, our attention is now directed towards the target variable. "Life Expectancy" is a continuous numerical variable that, as illustrated in the plot, exhibits a left-skewed distribution. Despite experimenting with various transformations, none of them proves effective in achieving symmetry for the variable. Consequently, we have decided to retain and utilize the variable in its original, natural form for further analysis.
+
+```{r}
+
+ggplot(Train, aes(Life.expectancy)) + geom_density(fill="lightblue") + xlab("Age") + ggtitle("Life.expectancy distribution")
+ggplot(Train, aes(log(Life.expectancy))) + geom_density(fill="lightblue") + xlab("Age") + ggtitle("log(Life.expectancy) distribution")
+ggplot(Train, aes(sqrt(Life.expectancy))) + geom_density(fill="lightblue") + xlab("Age") + ggtitle("sqrt(Life.expectancy) distribution")
+```
+
+## 2.5. Exploratory data analysis
+
+In the upcoming section, we'll conduct a detailed analysis of the remaining variables concerning our objective feature. To better grasp potential relationships, we'll begin by assessing the marginal correlation of each variable with the target. Subsequently, we'll focus on the more correlated variables and explore some regression approximations.
+
+#### Correlations
+
+Examining the marginal correlations reveals that addressing this problem could be straightforward, given the high correlation of many variables with the target. This suggests the possibility of achieving strong predictions using just one variable. However, it is essential to consider inter-variable relationships as well, as they could provide valuable insights, potentially enhancing the accuracy of our predictions.
+
+```{r}
+
+corr_delay <- sort(cor(Train[,c(3:22)])["Life.expectancy",], decreasing = T)
+corr=data.frame(corr_delay)
+ggplot(corr,aes(x = row.names(corr), y = corr_delay)) + 
+  geom_bar(stat = "identity", fill = "lightblue") + 
+  scale_x_discrete(limits= row.names(corr)) +
+  labs(x = "", y = "Life.expectancy", title = "Correlations") + 
+  theme(plot.title = element_text(hjust = 0, size = rel(1.5)),
+        axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+#### Life.expectancy and Adult.Mortality, HIV.AIDS, Schooling and Income.composition.of.resources
+
+As mentioned earlier, building potent predictive models using just a single variable is possible. The subsequent series of plots depict the regression model for each highly correlated variable individually. While these models effectively capture a significant portion of the points distribution, it's evident that some information remains untapped. Considering all four of these variables, and possibly more, could contribute to constructing a more robust and comprehensive prediction algorithm.
+
+```{r}
+# Plot for Adult.Mortality
+plot1 <- ggplot(Train, aes(x = Life.expectancy, y = Adult.Mortality)) +
+  geom_point() +
+  geom_smooth(method = "lm", se = FALSE, color = "blue") +
+  labs(title = "Adult Mortality", x = "Life Expectancy", y = "Adult Mortality")
+
+# Plot for HIV.AIDS
+plot2 <- ggplot(Train, aes(x = Life.expectancy, y = HIV.AIDS)) +
+  geom_point() +
+  geom_smooth(method = "lm", se = FALSE, color = "blue") +
+  labs(title = "HIV/AIDS", x = "Life Expectancy", y = "HIV/AIDS")
+
+# Plot for Schooling
+plot3 <- ggplot(Train, aes(x = Life.expectancy, y = Schooling)) +
+  geom_point() +
+  geom_smooth(method = "lm", se = FALSE, color = "blue") +
+  labs(title = "Schooling", x = "Life Expectancy", y = "Schooling")
+
+# Plot for Income.composition.of.resources
+plot4 <- ggplot(Train, aes(x = Life.expectancy, y = Income.composition.of.resources)) +
+  geom_point() +
+  geom_smooth(method = "lm", se = FALSE, color = "blue") +
+  labs(title = "Income Composition", x = "Life Expectancy", y = "Income Composition")
+
+# Combine the plots into a 2x2 grid
+grid.arrange(plot1, plot2, plot3, plot4, ncol = 2)
+
+
+```
+
+#### Life.expectancy and Status
+
+Finally, due to the inability to compute correlation between categorical and numeric variables, the figure below illustrates how the "Status" variable encapsulates significant information about the target variable. The distinct distributions observed for each class suggest that incorporating this variable into the final model would likely be beneficial.
+
+```{r}
+ggplot(Train, aes(Life.expectancy)) + geom_density(aes(group=Status, colour=Status, fill=Status), alpha=0.1) + ggtitle("Life expectancy by country distribution")
+
+```
+
+# 3. Benchmark
+
+As observed, this problem is not inherently complicated, given the substantial correlations between certain variables and the target. Then, to establish a baseline for model improvement, we will utilize a straightforward approach: predicting with the mean of the target variable. This baseline yields an RMSE of $9.89$. The goal is to develop a model that surpasses this baseline performance.
+
+```{r}
+mean(Train$Life.expectancy)
+
+# This is equivalent to
+benchFit <- lm(Life.expectancy ~ 1, data=Train)
+predictions <- predict(benchFit, newdata=Test) ## we squared the predictions as the transformation in sqrt
+RMSE <- sqrt(mean((predictions - Test$Life.expectancy)^2))
+RMSE
+
+```
+
+# 4. Multiple regression algorithms
+
+## 4.1. Overffited model
+
+In the initial steps of creating a model compatible with statistical tools and machine learning methods, we'll start by constructing an overfitted linear regressor using all variables, without considering interactions. Subsequently, our aim is to refine and select a more optimal model for further analysis.
+
+```{r}
+
+
+# If we want to fix the hyper-parameters (no tuning), then no trainControl is needed
+
+ctrl <- trainControl(method = "none")
+
+ModelO = Life.expectancy ~ .
+
+lm_tune <- train(ModelO, data = Train, 
+                 method = "lm", 
+                preProc=c('scale', 'center'),
+                 trControl = ctrl)
+lm_tune
+
+test_results <- data.frame(Life.expectancy = Test$Life.expectancy)
+
+test_results$lm_1 <- predict(lm_tune, Test)
+
+
+observed = Test$Life.expectancy
+# computes RMSE, R2 and MAE
+x= postResample(pred = test_results$lm_1,  obs = observed)
+x
+metric_results <- data.frame(Method= "Overfitted", RMSE = x[1], R2 = x[2], MAE = x[3], stringsAsFactors = FALSE)
+
+
+
+```
+
+```{r}
+
+ggplot(test_results, aes(x = lm_1, y = Life.expectancy)) +
+  geom_point() +
+  geom_abline(intercept = 0, slope = 1, color = "red", linetype = "dashed") +  # Add a reference line (y = x)
+  labs(title = "True vs Predicted Values",
+       x = "Predicted Values (lm_1)",
+       y = "True Values (Age)")
+
+```
+
+As anticipated, the overfitted nature of this model makes it challenging to interpret, yet it demonstrates remarkable predictive performance. The metrics reveal an RMSE of $1.94$ and an R-squared value of $0.96$, indicating that, despite its complexity, the model performs exceptionally well in making accurate predictions. While the interpretability may be compromised due to overfitting, these impressive metrics provide a strong foundation for further refining our model.
+
+## 4.2. Best model
+
+Taking into account the variables analysis, insights from the overfitted model, and observed correlations, our final model is constructed as follows: $$Model= Status*Schooling^2 + Adult.Mortality*HIV.AIDS +  Income.composition.of.resources + BMI + log(Diphtheria) + log(Polio) + Alcohol*percentage.expenditure + thinness..1.19.years*thinness.5.9.years$$ In the model-building process, we initially selected the most correlated variables, opting for a diverse set to allow for potential improvements through model selection methods. Next, by introducing interactions between variables, we aimed to capture additional information within the context of complex variable relationships. Finally, transformations were applied to certain variables to address distribution characteristics.
+
+The resulting final model exhibits $RMSE= 4.09$ and $R^2=0.83$. While these metrics provide a solid foundation, our objective in the subsequent sections will be to further enhance and refine the model's predictive capabilities.
+
+```{r}
+Model = Life.expectancy ~ Status*Schooling^2 + Adult.Mortality*HIV.AIDS +  Income.composition.of.resources + BMI + log(Diphtheria) + log(Polio) + Alcohol*percentage.expenditure + thinness..1.19.years*thinness.5.9.years
+
+lm_tune <- train(Model, data = Train, 
+                 method = "lm", 
+                 preProc=c('scale', 'center'),
+                 trControl = ctrl)
+lm_tune
+
+
+test_results$lm_2 <- predict(lm_tune, Test)
+x= postResample(pred = test_results$lm_2,  obs = observed)
+x
+new_method_results <- c("Multiple Reg", x[1], x[2], x[3])
+
+# Add the new row to the metric_results using rbind
+metric_results <- rbind(metric_results, new_method_results)
+
+# Create a scatter plot
+ggplot(test_results, aes(x = lm_2, y = Life.expectancy)) +
+  geom_point() +
+  geom_abline(intercept = 0, slope = 1, color = "red", linetype = "dashed") +  # Add a reference line (y = x)
+  labs(title = "True vs Predicted Values",
+       x = "Predicted Values (lm_2)",
+       y = "True Values (Age)")
+```
+
+# 5. Statistical Learning Tools
+
+Stadistical learning tools are based on methods that combine statistics and machine learning to make sense of complex datasets.It's a practical approach that helps us extract useful information, make informed decisions, and create models that work well with new data. In this section, we'll focus on two key aspects: model selection and regularization methods.
+
+## 5.1. Model selection
+
+Model selection involves choosing the most appropriate variables or features for our model, aiming to strike a balance between simplicity and predictive accuracy. In this context, we'll explore three widely-used techniques: forward regression, backward regression, and stepwise regression.
+
+### 5.1.1. Forward regression
+
+Forward regression is a method where the model starts with an empty set of predictors and iteratively adds the most impactful variables one at a time. This process continues until a predetermined stopping criterion is met, resulting in a final model with a subset of the available predictors.
+
+Utilizing the *caret* library, we employ a forward regression model trained with 5-fold cross-validation. We configure the model to consider a range of variables, specifically from 4 to 10, to prevent the risk of overfitting due to an excessive number of variables.
+
+```{r}
+Model = Life.expectancy ~ Status*Schooling^2 + Adult.Mortality*HIV.AIDS +  Income.composition.of.resources + BMI + Diphtheria + Polio + Alcohol*percentage.expenditure + thinness..1.19.years*thinness.5.9.years
+
+ctrl <- trainControl(method = "repeatedcv", 
+                     number = 5, repeats = 1)
+
+
+for_tune <- train(Model, data = Train, 
+                  method = "leapForward", 
+                  preProc=c('scale', 'center'),
+                  tuneGrid = expand.grid(nvmax = 4:10),
+                  trControl = ctrl)
+
+for_tune 
+plot(for_tune)
+
+```
+
+As illustrated in the figures, this method opts for 10 variables as the optimal approach. We experimented with a broader tune grid, and the method consistently favored having more variables as the preferred choice. This tendency could be attributed to our original model having several crucial variables for prediction. However, as demonstrated in the subsequent code snippet, the prediction metrics closely resemble those of the original model with all predictors (16), even when considering only 10. This reaffirms that forward regression has indeed identified the most suitable set of predictors. The next question naturally arises: which variables have been selected?
+
+-   Schooling
+
+-   HIV.AIDS
+
+-   BMI
+
+-   Adult.Mortality:HIV.AIDS
+
+-   StatusDeveloping
+
+-   Adult.Mortality
+
+-   Income.composition.of.resources
+
+-   Diphtheria
+
+```{r}
+coef(for_tune$finalModel, for_tune$bestTune$nvmax)
+
+```
+
+Despite employing fewer predictors, the metric results remain largely consistent with the original model. This affirms the effectiveness of this model selection approach in reducing model complexity while retaining robust predictive capabilities.
+
+```{r}
+## when predicting we directly use for_tune as there the correct parameters are saved after training wit CV
+test_results$frw <- predict(for_tune, Test)
+x= postResample(pred = test_results$frw,  obs = observed)
+
+new_method_results <- c("Forward", x[1], x[2], x[3])
+
+# Add the new row to the metric_results using rbind
+metric_results <- rbind(metric_results, new_method_results)
+metric_results
+```
+
+In conclusion, we can now observe the distribution of our model predictions in comparison to the actual data values.
+
+```{r}
+# Create a scatter plot
+ggplot(test_results, aes(x = frw, y = Life.expectancy)) +
+  geom_point() +
+  geom_abline(intercept = 0, slope = 1, color = "red", linetype = "dashed") +  # Add a reference line (y = x)
+  labs(title = "True vs Predicted Values",
+       x = "Predicted Values (frw)",
+       y = "True Values (Age)")
+```
+
+### 5.1.2. Backward regression
+
+Backward regression begins with the full set of predictors and removes the least significant variables in a stepwise fashion. This iterative elimination process continues until the model reaches the desired level of simplicity or until certain statistical criteria are satisfied. Similarly to previous method, we use a 5-fold cross-validation with a grid search space of 4 to 10 predictors.
+
+```{r}
+back_tune <- train(Model, data = Train, 
+                   method = "leapBackward", 
+                   preProc=c('scale', 'center'),
+                   tuneGrid = expand.grid(nvmax = 4:10),
+                   trControl = ctrl)
+back_tune
+plot(back_tune)
+```
+
+Again, when experimenting with a broader tune grid, the method consistently favored having more variables as the preferred choice. However, is important to notice that the set of selected predictors is different with this model:
+
+-   Adult.Mortality
+
+-   Income.composition.of.resources
+
+-   percentage.expenditure
+
+-   Adult.Mortality:HIV.AIDS
+
+-   StatusDeveloping
+
+-   HIV.AIDS
+
+-   log(Polio)
+
+-   StatusDeveloping:Schooling
+
+```{r}
+coef(back_tune$finalModel, back_tune$bestTune$nvmax)
+```
+
+In contrast to the previous method, this approach yielded slightly inferior performance in our model, although the metrics still demonstrate satisfactory results. This observation reinforces the notion that, for our specific problem, forward regression might be more advantageous than backward regression.
+
+```{r}
+test_results$bw <- predict(back_tune, Test)
+x= postResample(pred = test_results$bw,  obs = observed)
+new_method_results <- c("Backward", x[1], x[2], x[3])
+
+# Add the new row to the metric_results using rbind
+metric_results <- rbind(metric_results, new_method_results)
+metric_results
+```
+
+Finally, we visualize the predictions.
+
+```{r}
+ggplot(test_results, aes(x = bw, y = Life.expectancy)) +
+  geom_point() +
+  geom_abline(intercept = 0, slope = 1, color = "red", linetype = "dashed") +  # Add a reference line (y = x)
+  labs(title = "True vs Predicted Values",
+       x = "Predicted Values (frw)",
+       y = "True Values (Age)")
+```
+
+### 5.1.3. Stepwise regression
+
+Stepwise regression combines elements of both forward and backward regression. It evaluates variables in a stepwise manner, considering their addition or removal at each iteration based on statistical criteria. This iterative approach aims to find an optimal balance between model complexity and performance.
+
+Applying the same methodology as before, this method produced a result similar to backward selection, reinforcing the conclusion that, once again, forward regression appears to be the preferable approach for our model.
+
+```{r}
+step_tune <- train(Model, data = Train, 
+                   method = "leapSeq", 
+                   preProc=c('scale', 'center'),
+                   tuneGrid = expand.grid(nvmax = 4:10),
+                   trControl = ctrl)
+plot(step_tune)
+
+# which variables are selected?
+coef(step_tune$finalModel, step_tune$bestTune$nvmax)
+
+test_results$seq <- predict(step_tune, Test)
+x= postResample(pred = test_results$seq,  obs = observed)
+new_method_results <- c("Step", x[1], x[2], x[3])
+
+# Add the new row to the metric_results using rbind
+metric_results <- rbind(metric_results, new_method_results)
+metric_results
+```
+
+## 5.2. Regularization methods
+
+Regularization methods offer a strategic approach to fine-tune models by controlling the impact of individual variables or features. In this exploration, we delve into three prominent regularization techniques: Ridge regression, Lasso regression, and Elastic Net. Much like the strategies employed in model selection, these methods aim to enhance model performance while mitigating the risk of overfitting, providing a nuanced perspective on variable inclusion in predictive modeling.
+
+### 5.2.1. Ridge
+
+Ridge regression, also known as L2 regularization, is a technique used in linear regression to address multicollinearity among predictor variables. Multicollinearity occurs when two or more independent variables in a regression model are highly correlated, leading to unstable and unreliable coefficient estimates. Ridge regression introduces a regularization term to the ordinary least squares (OLS) objective function, which penalizes large coefficients. This regularization term, controlled by a hyperparameter (usually denoted as lambda or alpha), encourages the model to shrink or "regularize" the coefficients towards zero. By doing so, ridge regression mitigates the impact of multicollinearity, stabilizing the model and often improving its generalization performance on new, unseen data.
+
+Therefore, we will train a model with ridge regression by tuning the hyperparameter lambda in a continuos search space from 0 to 1, trying 100 different values in that range.
+
+```{r}
+# the grid for lambda (penalization parameter)
+ridge_grid <- expand.grid(lambda = seq(0, .1, length = 100))
+
+# train
+ridge_tune <- train(Model, data = Train,
+                    method='ridge',
+                    preProc=c('scale','center'),
+                    tuneGrid = ridge_grid,
+                    trControl=ctrl)
+plot(ridge_tune)
+
+
+
+```
+
+Finally, during the training process, a low lambda value was selected, indicating minimal penalization for multicollinearity. Despite this modest penalty, empirical evidence from prediction metrics demonstrates that this approach effectively enhances the model's predictive performance.
+
+```{r}
+# the best tune
+ridge_tune$bestTune
+
+# prediction
+test_results$ridge <- predict(ridge_tune, Test)
+
+x= postResample(pred = test_results$ridge,  obs = observed)
+new_method_results <- c("Ridge", x[1], x[2], x[3])
+
+# Add the new row to the metric_results using rbind
+metric_results <- rbind(metric_results, new_method_results)
+metric_results
+```
+
+### 5.2.2. Lasso
+
+Lasso regression, or L1 regularization, is a technique employed in linear regression to address multicollinearity and perform feature selection. Similar to ridge regression, lasso introduces a regularization term to the ordinary least squares (OLS) objective function. However, in lasso, the regularization term is based on the absolute values of the regression coefficients, encouraging sparsity by pushing some coefficients to exactly zero. This results in automatic feature selection, as variables with zero coefficients are effectively excluded from the model.
+
+Once more, we proceed to train the model utilizing a continuous search space. In contrast to Ridge, the optimal Lasso regularization parameter is notably high. This suggests an extensive regularization effect, potentially leading to a sparse model with numerous coefficients set to zero. Upon reviewing the plot, it becomes apparent that the RMSE experiences swift reduction initially, reaching a plateau thereafter. Consequently, for the ultimate model training, we opt for a regularization parameter of 0.6. This choice aligns with the point where the RMSE attains its minimum, yet not all predictors are constrained to zero.
+
+```{r}
+lasso_grid <- expand.grid(fraction = seq(.01, 1, length = 100))
+
+lasso_tune <- train(Model, data = Train,
+                    method='lasso',
+                    preProc=c('scale','center'),
+                    tuneGrid = lasso_grid,
+                    trControl=ctrl)
+plot(lasso_tune)
+
+lasso_tune$bestTune
+
+
+```
+
+```{r}
+lasso_grid <- expand.grid(fraction = 0.6)  # Assuming 'fraction' is the parameter for Lasso
+
+lasso <- train(Model, data = Train,
+                    method='lasso',
+                    preProc=c('scale','center'),
+                    tuneGrid = lasso_grid,
+                    trControl=trainControl(method = "none"))
+
+test_results$lasso <- predict(lasso, Test)
+x= postResample(pred = test_results$lasso,  obs = observed)
+new_method_results <- c("Lasso", x[1], x[2], x[3])
+
+# Add the new row to the metric_results using rbind
+metric_results <- rbind(metric_results, new_method_results)
+metric_results
+```
+
+### 5.2.3. Elastic Net
+
+Elastic Net is a regularization technique used in linear regression and machine learning to address the limitations of both Ridge (L2 regularization) and Lasso (L1 regularization). It combines the penalty terms of both methods, introducing two hyperparameters (alpha and lambda) to control the extent of regularization. The alpha parameter balances the contribution of L1 and L2 penalties, allowing Elastic Net to capture the advantages of both methods.
+
+Hence, we now have distinct search spaces for each parameter. Upon tuning, the optimal values emerge as $\alpha = 0.04$ and $\lambda = 0.01$. This indicates that the model requires a minimal amount of regularization. The choice of a low $\lambda$ suggests that the penalty on the coefficients is relatively mild, while $\alpha = 0.04$ implies a predominantly L2 regularization influence. The inference drawn is that the model benefits from a subtle regularization approach, possibly indicating a balance between simplicity and accurate predictions, with the emphasis on preserving a larger set of features.
+
+In conclusion, the evaluation metrics for prediction accuracy align with outcomes observed when utilizing Ridge regularization alone.
+
+```{r}
+# two parameters, 2D grid
+elastic_grid = expand.grid(alpha = seq(0, .2, 0.01), lambda = seq(0, .1, 0.01))
+
+glmnet_tune <- train(Model, data = Train,
+                     method='glmnet',
+                     preProc=c('scale','center'),
+                     tuneGrid = elastic_grid,
+                     trControl=ctrl)
+
+plot(glmnet_tune)
+glmnet_tune$bestTune
+
+test_results$glmnet <- predict(glmnet_tune, Test)
+
+x= postResample(pred = test_results$glmnet,  obs = observed)
+new_method_results <- c("Elastic Net", x[1], x[2], x[3])
+
+# Add the new row to the metric_results using rbind
+metric_results <- rbind(metric_results, new_method_results)
+
+```
+
+## 5.3. Interpretation and intervals
+
+After training models using various statistical learning methods, we will select the best-performing model for interpretation and interval computation.
+
+The results unequivocally demonstrate that, for our specific problem, regularization methods outperform model selection methods. This superiority may stem from the initial selection of optimal predictors, which, however, failed to account for collinearities until the application of regularization.
+
+Specifically, Elastic Net has emerged as the most effective method, closely followed by Ridge. Consequently, the final statistical tool selected for our model is Ridge, as the marginal improvement in prediction accuracy offered by Elastic Net is deemed insufficient to justify the added complexity it introduces. In summary, Ridge regularization stands out as the preferred approach for our model.
+
+```{r}
+metric_results
+```
+
+If we remember the Ridge regularization, it adds a penalty term to the sum of squared coefficients, which results in the coefficients being shrunk towards zero. The small lambda (like 0.005) implies less aggressive shrinkage, allowing the model to retain more of the original features. Furthermore, Ridge regression helps in controlling the trade-off between bias and variance. A low lambda strikes a balance where the model is not too biased (underfit) or too sensitive to the noise in the data (overfit). Finally, since a lower lambda allows the model to retain more features, it tends to be more complex than a model with higher lambda. However, the regularization still helps prevent the model from becoming too complex.
+
+To conclude with the stadistical learning tools section, we plot the prediction intervals of the chosen model by conformal prediction. Conformal prediction is a framework in machine learning that provides valid prediction intervals for individual predictions. It focuses on creating prediction intervals that, on average, contain the true value with a specified confidence level.
+
+-   The noise is computed as the difference between the true values (y) and the predicted values (yhat) on the first 100 observations, the calibration set. This represents the initial part of the data used to estimate the noise distribution.
+
+-   The lower and upper bounds of the prediction intervals are determined based on the quantiles of the noise (residuals) from the model's predictions.
+
+```{r}
+
+
+y = Test$Life.expectancy
+yhat = test_results$ridge
+
+error = y-yhat
+
+noise = error[1:100]
+
+lwr = yhat[101:length(yhat)] + quantile(noise,0.05, na.rm=T)
+upr = yhat[101:length(yhat)] + quantile(noise,0.95, na.rm=T)
+
+predictions = data.frame(real=y[101:length(y)], fit=yhat[101:length(yhat)], lwr=lwr, upr=upr)
+
+predictions = predictions %>% mutate(out=factor(if_else(real<lwr | real>upr,1,0)))
+
+# how many real observations are out of the intervals?
+mean(predictions$out==1)
+
+ggplot(predictions, aes(x=fit, y=real))+
+  geom_point(aes(color=out)) + theme(legend.position="none") +
+  geom_ribbon(data=predictions,aes(ymin=lwr,ymax=upr),alpha=0.3) +
+  labs(title = "Prediction intervals", x = "prediction",y="real price")
+```
+We can infer that our model has demonstrated effective Life Expectancy predictions, as only 0.07% of the predictions fall outside the specified prediction intervals. Additionally, the model surpasses the performance of the initial benchmark.
+
+# 6. Machine Learning Tools
+
+## 6.1. KNN
+
+Tuneamos la k y la metrica de distancia.
+la k hemos probado un rango más amplio pero llega un punto que ya no mejora, y elije una k demasiado grande, generalizando demasiado. finalmente k=5 es lo mejor y distancia p=1.
+
+Por ahora, mejora a las stadistical tools con métricas mucho mejores
+
+```{r}
+# 3 hyper-parameters: kmax, distance, kernel
+# kmax: number of neighbors considered
+# distance: parameter of Minkowski distance (p in Lp)
+# kernel: "rectangular" (standard unweighted knn), "triangular", "epanechnikov" (or beta(2,2)), "biweight" (or beta(3,3)), "tri- weight" (or beta(4,4)), "cos", "inv", "gaussian", "rank" and "optimal".
+
+knn_tune <- train(Model, 
+                  data = Train,
+                  method = "kknn",   
+                  preProc=c('scale','center'),
+                  tuneGrid = data.frame(
+    kmax = c(1,3,5,7),
+    distance = rep(c(1, 2, 3), each = 4),  # Adjusted to have the same number of rows
+    kernel = rep('optimal', 12)  # Adjusted to have the same number of rows
+  ),
+                  trControl = ctrl)
+plot(knn_tune)
+
+
+test_results$knn <- predict(knn_tune, Test)
+
+x= postResample(pred = test_results$knn,  obs = observed)
+
+new_method_results <- c("KNN", x[1], x[2], x[3])
+
+# Add the new row to the metric_results using rbind
+metric_results <- rbind(metric_results, new_method_results)
+
+```
+
+```{r}
+knn_tune$bestTune
+metric_results
+```
+
+
+## 6.2. Random Forest
+
+mtry: Number of variable is randomly collected to be sampled at each split time.
+
+ntree: Number of branches will grow after each time split.
+
+```{r}
+rf_tune <- train(
+  Model,
+  data = Train,
+  method = "rf",
+  preProc = c('scale', 'center'),
+  trControl = ctrl,
+  ntree = 100,
+  tuneGrid = expand.grid(
+    mtry = c(1, 3, 5, 7)),
+  importance = TRUE
+)
+
+
+plot(rf_tune) ##RMSE against the number of selected variables, best values if for 3, wich is already saved on rf_tune and used when predicting
+
+test_results$rf <- predict(rf_tune, Test)
+
+x=postResample(pred = test_results$rf,  obs = observed)
+new_method_results <- c("RF", x[1], x[2], x[3])
+
+# Add the new row to the metric_results using rbind
+metric_results <- rbind(metric_results, new_method_results)
+```
+
+```{r}
+## plotting the importance of each variable
+
+plot(varImp(rf_tune, scale = F), scales = list(y = list(cex = .95))) #most importance is size, second more imp is location, but in a non linear way, that is why RF shows the importance but for the linear models was not important
+
+
+## interpretable ML: relationship between size and target (prize)--> partial dependence
+partial(rf_tune, pred.var = "Adult.Mortality", plot = TRUE, rug = TRUE)
+
+```
+
+## 6.3. Gradient Boosting
+
+Gradient boosting has many hyperparameters: nrounds, max_depth, eta (learning rate), gamma, colsample_bytree, min_child_weigth, subsample etc
+
+
+nrounds: This hyperparameter represents the number of boosting rounds or trees to build. It is also known as the number of iterations. A higher value may lead to better performance, but it can also increase the risk of overfitting.
+
+max_depth: This parameter controls the maximum depth of each tree in the boosting process. A higher value allows the trees to capture more complex relationships in the data, but it may lead to overfitting.
+
+eta (learning rate): The learning rate controls the contribution of each tree to the final prediction. A smaller learning rate requires more boosting rounds but can lead to better generalization. It's a regularization technique to prevent overfitting.
+
+gamma: This parameter controls whether a given node will split based on the expected reduction in loss after the split. It provides regularization by preventing the tree from being too deep.
+
+colsample_bytree: It represents the fraction of features to be randomly sampled for building each tree. It helps to prevent overfitting by introducing randomness.
+
+min_child_weight: This parameter controls the minimum sum of instance weight (hessian) needed in a child. It adds regularization to avoid splitting nodes that don't contribute significantly.
+
+subsample: This parameter controls the fraction of the training data to be randomly sampled for each boosting round. It introduces randomness and helps prevent overfitting.
+
+objective: This specifies the learning task and the corresponding objective function. In your case, it's set to "reg:squarederror" for regression problems.
+
+```{r}
+xgb_tune <- train(Model, 
+                  data = training,
+                  method = "xgbTree",
+                  preProc=c('scale','center'),
+                objective="reg:squarederror",
+                  trControl = ctrl,
+                  tuneGrid = expand.grid(nrounds = c(500,1000), max_depth = c(5,6,7), eta = c(0.01, 0.1, 1),
+                                         gamma = c(1, 2, 3), colsample_bytree = c(1, 2),
+                                         min_child_weight = c(1), subsample = c(0.2,0.5,0.8)))
+
+test_results$xgb <- predict(xgb_tune, testing)
+
+x= postResample(pred = test_results$xgb,  obs = test_results$price)
+new_method_results <- c("GB", x[1], x[2], x[3])
+
+# Add the new row to the metric_results using rbind
+metric_results <- rbind(metric_results, new_method_results)
+```
+
+Variable importance and pdp:
+
+```{r}
+plot(varImp(xgb_tune, scale = F), scales = list(y = list(cex = .95)))
+
+partial(xgb_tune, pred.var = "sqft", plot = TRUE, rug = TRUE)
+
+```
+
+## 6.4. Neural Networks
+
+In Caret, you can add up to 3 hidden layers, but with the original package (neuralnet) you could add even more.
+
+Neural networks work best for photos, videos ... but not for tabular dataset.
+
+```{r}
+nn_tune <- train(ModelS, 
+                 data = training,
+                 method = "neuralnet",
+                 preProc=c('scale','center'),
+                 trControl = ctrl,
+                 tuneGrid = expand.grid(layer1 = c(4, 2),
+                                        layer2 = c(2, 1, 0),
+                                        layer3 = c(0)))
+
+test_results$nn <- predict(nn_tune, testing)
+
+x= postResample(pred = test_results$nn,  obs = test_results$price)
+new_method_results <- c("NN", x[1], x[2], x[3])
+
+# Add the new row to the metric_results using rbind
+metric_results <- rbind(metric_results, new_method_results)
+```
+
+Variable importance and pdp:
+
+```{r}
+plot(varImp(nn_tune, scale = F), scales = list(y = list(cex = .95)))
+
+partial(nn_tune, pred.var = "sqft", plot = TRUE, rug = TRUE)
+```
+
+## 6.5. Interpretation and conformal prediction intervals ...
+
+# 7. Ensemble
+
+si me quedan ganas, hacer un modelo final juntado los mejores de los anteriores y hacer prediction intervals
