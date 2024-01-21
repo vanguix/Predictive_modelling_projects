@@ -430,6 +430,10 @@ As illustrated in the figures, this method opts for 10 variables as the optimal 
 
 -   Schooling
 
+-   percentage.expenditure 
+
+-   Polio 
+
 -   HIV.AIDS
 
 -   BMI
@@ -491,21 +495,26 @@ plot(back_tune)
 
 Again, when experimenting with a broader tune grid, the method consistently favored having more variables as the preferred choice. However, is important to notice that the set of selected predictors is different with this model:
 
--   Adult.Mortality
-
--   Income.composition.of.resources
-
--   percentage.expenditure
-
--   Adult.Mortality:HIV.AIDS
-
 -   StatusDeveloping
+
+-   Adult.Mortality
 
 -   HIV.AIDS
 
--   log(Polio)
+-   Income.composition.of.resources
 
--   StatusDeveloping:Schooling
+-   Diphtheria 
+
+-   Polio
+
+-   thinness..1.19.years
+
+-   StatusDeveloping:Schooling 
+
+-   Adult.Mortality:HIV.AIDS 
+
+-   thinness..1.19.years:thinness.5.9.years 
+
 
 ```{r}
 coef(back_tune$finalModel, back_tune$bestTune$nvmax)
@@ -673,7 +682,7 @@ metric_results <- rbind(metric_results, new_method_results)
 
 ```
 
-## 5.3. Interpretation and intervals
+## 5.3. Interpretation and prediction intervals
 
 After training models using various statistical learning methods, we will select the best-performing model for interpretation and interval computation.
 
@@ -716,33 +725,36 @@ mean(predictions$out==1)
 ggplot(predictions, aes(x=fit, y=real))+
   geom_point(aes(color=out)) + theme(legend.position="none") +
   geom_ribbon(data=predictions,aes(ymin=lwr,ymax=upr),alpha=0.3) +
-  labs(title = "Prediction intervals", x = "prediction",y="real price")
+  labs(title = "Prediction intervals", x = "prediction",y="Real Life expectancy")
 ```
 We can infer that our model has demonstrated effective Life Expectancy predictions, as only 0.07% of the predictions fall outside the specified prediction intervals. Additionally, the model surpasses the performance of the initial benchmark.
 
 # 6. Machine Learning Tools
 
+Moving forward with the project, we delve into a range of machine learning tools. The tools under consideration span from the straightforward K-Nearest Neighbors (KNN) to the intricacies of gradient boosting and neural networks, encompassing the versatility of methods such as random forests in between. This comparative analysis aims to assess the efficacy and applicability of these diverse machine learning techniques in our project context.
+
 ## 6.1. KNN
 
-Tuneamos la k y la metrica de distancia.
-la k hemos probado un rango más amplio pero llega un punto que ya no mejora, y elije una k demasiado grande, generalizando demasiado. finalmente k=5 es lo mejor y distancia p=1.
+The K-Nearest Neighbors (KNN) machine learning model operates on the premise that the data itself is the model, making predictions based on the similarity of data points. 
+Among the parameters available for tuning, we opted to assess the values of "k" (the number of neighbors considered) and the choice of distance metric. The search space for "k" was ultimately defined as 1, 3, 5, and 7. Despite experimenting with a larger search space, it was observed that the model selected a larger "k" for optimal performance. However, this larger value resulted in over-generalization, prompting us to narrow down the search space to prevent this issue.
 
-Por ahora, mejora a las stadistical tools con métricas mucho mejores
+For the distance metric, we focused on tuning the parameter "p" in the Minkowski distance, which generalizes various distance measures. The Minkowski distance is defined as:
+
+\[ d(\mathbf{X}, \mathbf{Y}) = \left( \sum_{i=1}^{n} \lvert X_i - Y_i \rvert^p \right)^{\frac{1}{p}} \]
+
+Here, \( \mathbf{X} \) and \( \mathbf{Y} \) represent two data points, and \( n \) is the number of dimensions. The parameter \( p \) allows for flexibility in choosing different distance metrics. Specifically, if \( p = 1 \), the distance corresponds to the Manhattan distance, and  if \( p = 2 \), it represents the Euclidean distance.
+
+After training and assessing predictions on the test set, it is apparent that K-Nearest Neighbors enhances performance when contrasted with any of the statistical tools previously utilized. Machine learning models highlight in capturing non-linear relationships between variables, a task that proves challenging for traditional statistical tools. Consequently, the latter often result in inferior performance due to their inability to account for such complex relationships.
 
 ```{r}
-# 3 hyper-parameters: kmax, distance, kernel
-# kmax: number of neighbors considered
-# distance: parameter of Minkowski distance (p in Lp)
-# kernel: "rectangular" (standard unweighted knn), "triangular", "epanechnikov" (or beta(2,2)), "biweight" (or beta(3,3)), "tri- weight" (or beta(4,4)), "cos", "inv", "gaussian", "rank" and "optimal".
-
 knn_tune <- train(Model, 
                   data = Train,
                   method = "kknn",   
                   preProc=c('scale','center'),
                   tuneGrid = data.frame(
     kmax = c(1,3,5,7),
-    distance = rep(c(1, 2, 3), each = 4),  # Adjusted to have the same number of rows
-    kernel = rep('optimal', 12)  # Adjusted to have the same number of rows
+    distance = rep(c(1, 2), each = 4),
+    kernel = rep('optimal', 16)  
   ),
                   trControl = ctrl)
 plot(knn_tune)
@@ -757,19 +769,22 @@ new_method_results <- c("KNN", x[1], x[2], x[3])
 # Add the new row to the metric_results using rbind
 metric_results <- rbind(metric_results, new_method_results)
 
-```
-
-```{r}
 knn_tune$bestTune
 metric_results
-```
 
+```
 
 ## 6.2. Random Forest
 
-mtry: Number of variable is randomly collected to be sampled at each split time.
+The Random Forest method is founded on the concept of an ensemble of trees. Specifically, it constitutes a collection of independently trained trees, incorporating elements of randomization in the process. Random Forest introduces randomness in two main ways. Firstly, it randomly selects a subset of features (variables) at each split in each tree, ensuring diversity among the trees. Secondly, it employs bootstrapped samples (sampling with replacement) from the original dataset to train each tree.
 
-ntree: Number of branches will grow after each time split.
+Within the parameters available for tuning using the caret package, two key parameters are notable:
+- **mtry:** This parameter denotes the number of variables randomly selected to be sampled at each split.
+- **ntree:** This parameter represents the number of branches that will grow in the ensemble after each split.
+
+For our specific configuration, we opted to set ntree to 100. Setting a moderate number of trees, such as 100, often strikes a satisfactory balance between reducing the risk of overfitting (which can occur with a large number of trees) and maintaining a sufficiently diverse ensemble for robust predictions. This balance is crucial in ensuring the Random Forest model generalizes well to new, unseen data.
+
+As for the mtry parameter, which determines the number of variables randomly selected at each split, we chose to focus our tuning efforts on a limited search space of (1, 3, 5, 7). This choice stems from the desire to explore an adequate range of values without unnecessarily increasing computational complexity. A smaller mtry may result in trees that are more decorrelated, enhancing the diversity of the ensemble, while larger values may introduce more correlated trees. This selective tuning approach helps strike a balance between model complexity and predictive performance, ensuring that the Random Forest method is optimized for the given dataset and problem context.
 
 ```{r}
 rf_tune <- train(
@@ -785,7 +800,7 @@ rf_tune <- train(
 )
 
 
-plot(rf_tune) ##RMSE against the number of selected variables, best values if for 3, wich is already saved on rf_tune and used when predicting
+plot(rf_tune) 
 
 test_results$rf <- predict(rf_tune, Test)
 
@@ -794,104 +809,158 @@ new_method_results <- c("RF", x[1], x[2], x[3])
 
 # Add the new row to the metric_results using rbind
 metric_results <- rbind(metric_results, new_method_results)
+metric_results
 ```
+As evident from the observations, the ultimate Random Forest model exhibits superior performance compared to the earlier K-Nearest Neighbors (KNN) approach. This improvement may be attributed to the inherent strengths of the Random Forest methodology, such as its ability to handle complex relationships and mitigate overfitting through ensemble learning.
 
+To gain further insights, considering that this Random Forest model is constructed from a different number of trees, we can visualize the importance of each variable in the specific context of this model. Variable importance is determined by the number of times a variable is chosen as a node across all individual trees within the ensemble. It is crucial to note that these variable importance rankings are specific to this Random Forest model and the dataset it was trained on. Any alterations in the model parameters or changes to the dataset may impact these importance rankings, and therefore, they should be interpreted in the context of this particular model and dataset.
 ```{r}
-## plotting the importance of each variable
-
-plot(varImp(rf_tune, scale = F), scales = list(y = list(cex = .95))) #most importance is size, second more imp is location, but in a non linear way, that is why RF shows the importance but for the linear models was not important
-
-
-## interpretable ML: relationship between size and target (prize)--> partial dependence
-partial(rf_tune, pred.var = "Adult.Mortality", plot = TRUE, rug = TRUE)
+plot(varImp(rf_tune, scale = F), scales = list(y = list(cex = .95))) 
 
 ```
 
 ## 6.3. Gradient Boosting
 
-Gradient boosting has many hyperparameters: nrounds, max_depth, eta (learning rate), gamma, colsample_bytree, min_child_weigth, subsample etc
+Gradient Boosting is a machine learning method based on the concept of building a predictive model through the sequential combination of weak learners, typically decision trees. The fundamental idea behind Gradient Boosting is to iteratively improve the model's predictive performance by focusing on the mistakes made by the previous models in the sequence.
 
+Gradient boosting in caret has many hyperparameters: 
 
-nrounds: This hyperparameter represents the number of boosting rounds or trees to build. It is also known as the number of iterations. A higher value may lead to better performance, but it can also increase the risk of overfitting.
+  - nrounds: This hyperparameter represents the number of boosting rounds or trees to build. It is also known as the number of iterations. A higher value may lead to better performance, but it can also increase the risk of overfitting.
 
-max_depth: This parameter controls the maximum depth of each tree in the boosting process. A higher value allows the trees to capture more complex relationships in the data, but it may lead to overfitting.
+  - max_depth: This parameter controls the maximum depth of each tree in the boosting process. A higher value allows the trees to capture more complex relationships in the data, but it may lead to overfitting.
 
-eta (learning rate): The learning rate controls the contribution of each tree to the final prediction. A smaller learning rate requires more boosting rounds but can lead to better generalization. It's a regularization technique to prevent overfitting.
+  - eta (learning rate): The learning rate controls the contribution of each tree to the final prediction. A smaller learning rate requires more boosting rounds but can lead to better generalization. It's a regularization technique to prevent overfitting.
 
-gamma: This parameter controls whether a given node will split based on the expected reduction in loss after the split. It provides regularization by preventing the tree from being too deep.
+  - gamma: This parameter controls whether a given node will split based on the expected reduction in loss after the split. It provides regularization by preventing the tree from being too deep.
 
-colsample_bytree: It represents the fraction of features to be randomly sampled for building each tree. It helps to prevent overfitting by introducing randomness.
+  - colsample_bytree: It represents the fraction of features to be randomly sampled for building each tree. It helps to prevent overfitting by introducing randomness.
 
-min_child_weight: This parameter controls the minimum sum of instance weight (hessian) needed in a child. It adds regularization to avoid splitting nodes that don't contribute significantly.
+  - min_child_weight: This parameter controls the minimum sum of instance weight (hessian) needed in a child. It adds regularization to avoid splitting nodes that don't contribute significantly.
 
-subsample: This parameter controls the fraction of the training data to be randomly sampled for each boosting round. It introduces randomness and helps prevent overfitting.
-
-objective: This specifies the learning task and the corresponding objective function. In your case, it's set to "reg:squarederror" for regression problems.
+  - subsample: This parameter controls the fraction of the training data to be randomly sampled for each boosting round. It introduces randomness and helps prevent overfitting.
+  
+  
 
 ```{r}
-xgb_tune <- train(Model, 
-                  data = training,
-                  method = "xgbTree",
-                  preProc=c('scale','center'),
-                objective="reg:squarederror",
-                  trControl = ctrl,
-                  tuneGrid = expand.grid(nrounds = c(500,1000), max_depth = c(5,6,7), eta = c(0.01, 0.1, 1),
-                                         gamma = c(1, 2, 3), colsample_bytree = c(1, 2),
-                                         min_child_weight = c(1), subsample = c(0.2,0.5,0.8)))
+xgb_tune <- train(
+  Model, 
+  data = Train,
+  method = "xgbTree",
+  preProc = c('scale', 'center'),
+  trControl = ctrl,
+  tuneGrid = expand.grid(
+    nrounds = 500,
+    max_depth = c(5, 6, 7),
+    eta = c(0.01, 0.1, 1),
+    gamma = c(1, 2, 3),
+    colsample_bytree =0.8,
+    min_child_weight = 1,
+    subsample = 0.8
+  )
+)
 
-test_results$xgb <- predict(xgb_tune, testing)
+```
 
-x= postResample(pred = test_results$xgb,  obs = test_results$price)
+```{r}
+test_results$xgb <- predict(xgb_tune, Test)
+
+x= postResample(pred = test_results$xgb,  obs = test_results$Life.expectancy)
 new_method_results <- c("GB", x[1], x[2], x[3])
 
 # Add the new row to the metric_results using rbind
 metric_results <- rbind(metric_results, new_method_results)
+metric_results
 ```
+Gradient boosting has demonstrated its superiority over other methods thus far, surpassing even the performance of an overfitted linear model. This remarkable achievement can be attributed to its inherent ability to mitigate overfitting, a characteristic ingrained in the model's nature. This is can be due to the careful hyperparameter tuning performed during the model development, which ensures that the boosting process is constrained and prevents excessive complexity that could lead to overfitting.
 
-Variable importance and pdp:
+Conclusively, we can once again delve into assessing the significance of variables in these specific models, facilitated by the foundational tree models upon which gradient boosting is constructed.
 
 ```{r}
 plot(varImp(xgb_tune, scale = F), scales = list(y = list(cex = .95)))
 
-partial(xgb_tune, pred.var = "sqft", plot = TRUE, rug = TRUE)
 
 ```
 
 ## 6.4. Neural Networks
 
-In Caret, you can add up to 3 hidden layers, but with the original package (neuralnet) you could add even more.
+Neural networks represent a category of machine learning models inspired by the intricate structure and operations of the human brain. Comprising interconnected nodes, or artificial neurons represented as mathematical functions, these models are organized into layers. The input layer receives initial data, hidden layers process information, and the output layer generates the final result. Neurons are connected with associated weights and biases, which are fine-tuned through the training process, enabling the network to adapt and make precise predictions.
 
-Neural networks work best for photos, videos ... but not for tabular dataset.
+Specifically, in this context, we are fine-tuning a neural network with three layers, aiming to identify the optimal combination of neurons for each layer. Given the computational intensity of this model, we opt for more conservative search spaces to efficiently explore the potential configurations.
 
 ```{r}
-nn_tune <- train(ModelS, 
-                 data = training,
-                 method = "neuralnet",
-                 preProc=c('scale','center'),
-                 trControl = ctrl,
-                 tuneGrid = expand.grid(layer1 = c(4, 2),
-                                        layer2 = c(2, 1, 0),
-                                        layer3 = c(0)))
+nn_tune <- train(
+  Model,
+  data = Train,
+  method = "neuralnet",
+  preProc = c('scale', 'center'),
+  trControl = ctrl,
+  tuneGrid = expand.grid(
+    layer1 = c(2, 3),
+    layer2 = c(2, 3),
+    layer3 = c(2, 3)
+  )
+)
 
-test_results$nn <- predict(nn_tune, testing)
+```
 
-x= postResample(pred = test_results$nn,  obs = test_results$price)
+```{r}
+test_results$nn <- predict(nn_tune, Test)
+
+x= postResample(pred = test_results$nn,  obs = test_results$Life.expectancy)
 new_method_results <- c("NN", x[1], x[2], x[3])
 
 # Add the new row to the metric_results using rbind
 metric_results <- rbind(metric_results, new_method_results)
+metric_results
 ```
 
-Variable importance and pdp:
+Unexpectedly, the neural network exhibits the poorest performance among all the models tested. While this method proves highly effective in certain contexts, it is essential to recognize that neural networks highlight in handling data types like images, voice, or video due to their capability to discern intricate patterns inherent to such data. However, when confronted with tabular data, simpler machine learning methods such as KNN or random forest often outshine neural networks because tabular data typically lacks the complex relationships and non-linear patterns that neural networks are adept at capturing. Simpler methods like KNN or random forest, with their transparency and ease of implementation, often provide more interpretable and reliable results for structured datasets, making them preferable choices in such scenarios.
+
+
+## 6.5. Interpretation and prediction intervals
+
+After training several machine learning models, we will select the best-performing method for interpretation and interval computation.
+
+The results unequivocally demonstrate that, for our specific problem, Gradient Boosting outperforms the rest of the methods. This superiority can be attributed to its ability to sequentially minimize errors by focusing on the weaknesses of the preceding models, thus capturing intricate patterns and non-linear relationships in the data. Additionally, the hyperparameter tuning process ensured that Gradient Boosting was fine-tuned to the specific characteristics of our dataset, further enhancing its performance. The model's robustness, coupled with its interpretability, makes it the optimal choice for both understanding the underlying patterns in the data and computing reliable prediction intervals.
+
 
 ```{r}
-plot(varImp(nn_tune, scale = F), scales = list(y = list(cex = .95)))
-
-partial(nn_tune, pred.var = "sqft", plot = TRUE, rug = TRUE)
+metric_results
 ```
 
-## 6.5. Interpretation and conformal prediction intervals ...
+Therefore, we will finally evaluate the predictions intervals from the Gradient Boosting model. Again, we will employ conformal prediction, which focuses on creating prediction intervals that, on average, contain the true value with a specified confidence level. As a brief review:
 
-# 7. Ensemble
+-   The noise is computed as the difference between the true values (y) and the predicted values (yhat) on the first 100 observations, the calibration set. This represents the initial part of the data used to estimate the noise distribution.
 
-si me quedan ganas, hacer un modelo final juntado los mejores de los anteriores y hacer prediction intervals
+-   The lower and upper bounds of the prediction intervals are determined based on the quantiles of the noise (residuals) from the model's predictions.
+
+```{r}
+y = Test$Life.expectancy
+yhat = test_results$xgb
+
+error = y-yhat
+
+noise = error[1:100]
+
+lwr = yhat[101:length(yhat)] + quantile(noise,0.05, na.rm=T)
+upr = yhat[101:length(yhat)] + quantile(noise,0.95, na.rm=T)
+
+predictions = data.frame(real=y[101:length(y)], fit=yhat[101:length(yhat)], lwr=lwr, upr=upr)
+
+predictions = predictions %>% mutate(out=factor(if_else(real<lwr | real>upr,1,0)))
+
+# how many real observations are out of the intervals?
+mean(predictions$out==1)
+
+ggplot(predictions, aes(x=fit, y=real))+
+  geom_point(aes(color=out)) + theme(legend.position="none") +
+  geom_ribbon(data=predictions,aes(ymin=lwr,ymax=upr),alpha=0.3) +
+  labs(title = "Prediction intervals", x = "prediction",y="Real Life expectancy")
+```
+
+
+Here, we can observe an interesting phenomenon. The gradient boosting model exhibits superior performance in terms of point predictions on the test set, as evidenced by lower RMSE and higher $R^2$ values. These metrics signify the model's ability to accurately predict average responses.
+
+However, when we delved into the assessment of prediction intervals, a curious picture emerged. The ridge regression model outperformed the gradient boosting model in this regard, with only a marginal difference of 0.07% points of instances falling outside the intervals compared to gradient boosting's 0.16%. This discrepancy highlights the ridge model's effectiveness in precisely capturing the uncertainty around individual predictions.
+
+To conclude, this divergence in performance underscores the importance of considering multiple evaluation metrics. While gradient boosting highlights in point predictions, the ridge regression model demonstrates a noteworthy advantage in providing well-calibrated prediction intervals. This understanding is crucial for a comprehensive assessment of the models' effectiveness in different aspects of prediction and uncertainty estimation.
